@@ -1,0 +1,16 @@
+# 生成产物
+outputs/
+
+# Python
+.venv/
+__pycache__/
+
+# macOS
+.DS_Store
+
+# 输入视频（通常较大，不纳入版本控制）
+Assets/
+
+# 工具状态
+.claude/
+.omc/
