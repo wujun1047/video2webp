@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>视频转透明 WebP</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .drag-over { border-color: #3b82f6 !important; background: rgba(59,130,246,0.08); }
+  .checkerboard {
+    background-image:
+      linear-gradient(45deg, #475569 25%, transparent 25%),
+      linear-gradient(-45deg, #475569 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #475569 75%),
+      linear-gradient(-45deg, transparent 75%, #475569 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  }
+</style>
+</head>
+<body class="bg-slate-900 min-h-screen text-slate-200 flex justify-center py-8 px-4">
+<div class="w-full max-w-2xl space-y-6">
+
+  <!-- 标题 -->
+  <div class="text-center">
+    <h1 class="text-2xl font-semibold text-white">视频转透明 WebP</h1>
+    <p class="text-sm text-slate-400 mt-1">纯本地处理，不上传网络</p>
+  </div>
+
+  <!-- 上传区 -->
+  <div id="dropzone" class="border-2 border-dashed border-slate-600 rounded-xl p-10 text-center cursor-pointer
+    hover:border-slate-400 hover:bg-slate-800/30 transition-all">
+    <input type="file" id="fileInput" accept=".mov,.mp4,video/mov,video/mp4" class="hidden">
+    <div class="flex flex-col items-center gap-3">
+      <svg class="w-12 h-12 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+      </svg>
+      <p class="text-lg text-slate-300">拖拽或<span class="text-blue-400">点击</span>上传视频</p>
+      <p class="text-sm text-slate-500">支持 MOV / MP4</p>
+    </div>
+  </div>
+
+  <!-- 文件信息 -->
+  <div id="fileInfo" class="hidden text-sm text-center text-slate-400 bg-slate-800/50 rounded-lg py-2"></div>
+
+  <!-- 设置面板 -->
+  <div id="settings" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div>
+      <label class="block text-xs text-slate-400 mb-1.5">背景颜色</label>
+      <select id="bgType" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+        <option value="auto">自动检测</option>
+        <option value="green">绿色</option>
+        <option value="blue">蓝色</option>
+        <option value="black">黑色</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-slate-400 mb-1.5">帧率</label>
+      <select id="fps" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+        <option value="0">原帧率</option>
+        <option value="15">15 fps</option>
+        <option value="30">30 fps</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-slate-400 mb-1.5">最大尺寸</label>
+      <select id="maxSize" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+        <option value="0">原尺寸</option>
+        <option value="512">512px</option>
+        <option value="768">768px</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-slate-400 mb-1.5">质量: <span id="qualityVal" class="text-blue-400">85</span></label>
+      <input type="range" id="quality" min="10" max="100" value="85" class="w-full accent-blue-500 mt-1">
+    </div>
+  </div>
+
+  <!-- 开始按钮 -->
+  <div id="startBtn" class="hidden text-center">
+    <button onclick="startProcess()" class="px-8 py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-xl text-base font-medium transition-all shadow-lg shadow-blue-600/25">
+      开始处理
+    </button>
+  </div>
+
+  <!-- 进度条 -->
+  <div id="progress" class="hidden space-y-2">
+    <div class="flex justify-between text-sm">
+      <span id="progressStage" class="text-blue-400"></span>
+      <span id="progressMsg" class="text-slate-400"></span>
+    </div>
+    <div class="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+      <div id="progressBar" class="bg-blue-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+    </div>
+    <div id="progressPercent" class="text-center text-xs text-slate-500"></div>
+  </div>
+
+  <!-- 预览对比 -->
+  <div id="preview" class="hidden grid grid-cols-2 gap-4">
+    <div>
+      <p class="text-xs text-slate-400 mb-1.5 text-center">原始帧</p>
+      <div class="rounded-lg overflow-hidden border border-slate-600">
+        <canvas id="origCanvas" class="w-full"></canvas>
+      </div>
+    </div>
+    <div>
+      <p class="text-xs text-slate-400 mb-1.5 text-center">去背景后 (占位)</p>
+      <div class="rounded-lg overflow-hidden border border-slate-600 checkerboard">
+        <canvas id="procCanvas" class="w-full"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- 完成状态 -->
+  <div id="doneBox" class="hidden text-center">
+    <div class="flex items-center justify-center gap-2 text-green-400 text-sm mb-4">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+      </svg>
+      处理完成！
+    </div>
+  </div>
+
+  <!-- 下载 / 重新处理 -->
+  <div id="actions" class="hidden flex justify-center gap-3">
+    <a id="downloadBtn" href="#" download="output.webp"
+      class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      下载 WebP
+    </a>
+    <button onclick="resetAll()" class="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-sm font-medium transition-colors">
+      重新处理
+    </button>
+  </div>
+
+  <!-- 错误信息 -->
+  <div id="errorBox" class="hidden bg-red-900/30 border border-red-800 rounded-lg p-4 text-center">
+    <p id="errorMsg" class="text-red-400 text-sm"></p>
+  </div>
+
+</div>
+
+<script>
+// ---- 帮助函数 ----
+const $ = id => document.getElementById(id);
+const show = id => $(id).classList.remove('hidden');
+const hide = id => $(id).classList.add('hidden');
+
+// ---- 状态 ----
+let jobId = null;
+let pollTimer = null;
+
+// ---- 拖拽上传 ----
+const dz = $('dropzone');
+const fi = $('fileInput');
+
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('drag-over');
+  handleFile(e.dataTransfer.files[0]);
+});
+dz.addEventListener('click', () => fi.click());
+fi.addEventListener('change', e => handleFile(e.target.files[0]));
+
+async function handleFile(f) {
+  if (!f) return;
+  if (!f.name.match(/\.(mov|mp4)$/i)) {
+    alert('仅支持 MOV / MP4 格式');
+    return;
+  }
+
+  hide('doneBox'); hide('actions'); hide('errorBox'); hide('progress'); hide('settings'); hide('startBtn'); hide('preview');
+
+  $('fileInfo').textContent = '正在上传...';
+  show('fileInfo');
+
+  const fd = new FormData();
+  fd.append('video', f);
+
+  let res, data;
+  try {
+    res = await fetch('/api/upload', { method: 'POST', body: fd });
+    data = await res.json();
+  } catch (e) {
+    $('fileInfo').textContent = '上传失败，请检查服务是否运行';
+    return;
+  }
+
+  if (data.error) {
+    $('fileInfo').textContent = data.error;
+    return;
+  }
+
+  jobId = data.job_id;
+  const sizeMB = (data.size / 1024 / 1024).toFixed(1);
+  $('fileInfo').textContent = `已选择: ${data.filename} (${sizeMB}MB, ${data.width}×${data.height}, ${data.fps}fps)`;
+  show('settings');
+  show('startBtn');
+
+  // 提取首帧预览
+  try {
+    const video = document.createElement('video');
+    video.preload = 'auto';
+    video.muted = true;
+    video.src = URL.createObjectURL(f);
+    await new Promise(r => { video.onloadedmetadata = r; });
+    video.currentTime = 0;
+    await new Promise(r => { video.onseeked = r; });
+    const c = $('origCanvas'), ctx = c.getContext('2d');
+    c.width = video.videoWidth;
+    c.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+    show('preview');
+    URL.revokeObjectURL(video.src);
+  } catch (e) {
+    // 预览失败不影响主流程
+  }
+}
+
+// ---- 设置变化 ----
+$('quality').addEventListener('input', e => {
+  $('qualityVal').textContent = e.target.value;
+});
+
+// ---- 开始处理 ----
+async function startProcess() {
+  hide('startBtn');
+  hide('errorBox');
+  show('progress');
+  $('progressBar').style.width = '0%';
+  $('progressPercent').textContent = '';
+
+  let res, data;
+  try {
+    res = await fetch('/api/process', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: jobId,
+        bg_type: $('bgType').value,
+        fps: parseInt($('fps').value),
+        quality: parseInt($('quality').value),
+      })
+    });
+    data = await res.json();
+  } catch (e) {
+    showError('无法启动处理');
+    return;
+  }
+
+  if (data.error) {
+    showError(data.error);
+    return;
+  }
+
+  // 轮询进度
+  pollTimer = setInterval(async () => {
+    let pr;
+    try {
+      pr = await (await fetch(`/api/progress/${jobId}`)).json();
+    } catch (e) {
+      return; // 网络波动，跳过一轮
+    }
+
+    $('progressStage').textContent = stageLabel(pr.stage);
+    $('progressMsg').textContent = pr.message;
+
+    if (pr.total > 0) {
+      $('progressBar').style.width = Math.round(pr.current / pr.total * 100) + '%';
+      $('progressPercent').textContent = pr.current + ' / ' + pr.total;
+    }
+
+    if (pr.stage === 'done') {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      hide('progress');
+      show('doneBox');
+      show('actions');
+      $('downloadBtn').href = `/api/download/${jobId}`;
+    }
+
+    if (pr.stage === 'error') {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      showError(pr.message);
+    }
+  }, 500);
+}
+
+function stageLabel(s) {
+  const map = {
+    extracting: '提取帧',
+    'removing-bg': 'AI 去背景',
+    postprocess: '后处理',
+    encoding: '合成 WebP',
+    done: '完成',
+    error: '出错',
+    queued: '排队中',
+  };
+  return map[s] || s;
+}
+
+function showError(msg) {
+  hide('progress');
+  hide('startBtn');
+  show('errorBox');
+  $('errorMsg').textContent = msg;
+}
+
+function resetAll() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  jobId = null;
+  hide('fileInfo'); hide('settings'); hide('startBtn');
+  hide('progress'); hide('preview'); hide('doneBox'); hide('actions'); hide('errorBox');
+}
+</script>
+</body>
+</html>
