@@ -164,20 +164,37 @@ async function selectFile() {
   $('fileMeta').textContent = `${info.width}×${info.height}, ${info.fps}fps, ${info.size_mb}MB`;
   $('startBtn').disabled = false;
 
-  // 预览首帧
-  const video = document.createElement('video');
-  video.preload = 'auto'; video.muted = true;
-  const url = 'file://' + info.path;
-  video.src = url;
-  videoBlobUrl = url;
-  await new Promise(r => { video.onloadedmetadata = r; });
-  video.currentTime = 0;
-  await new Promise(r => { video.onseeked = r; });
-  const c = $('origCanvas'), ctx = c.getContext('2d');
-  c.width = video.videoWidth; c.height = video.videoHeight;
-  c.style.maxHeight = '200px';
-  ctx.drawImage(video, 0, 0);
-  $('preview').style.display = 'flex';
+  // 预览首帧（file:// 可能在 WKWebView 中被阻止，加超时保护）
+  try {
+    const video = document.createElement('video');
+    video.preload = 'auto'; video.muted = true;
+    const url = 'file://' + info.path;
+    video.src = url;
+    videoBlobUrl = url;
+    await Promise.race([
+      new Promise((resolve, reject) => {
+        video.onloadedmetadata = resolve;
+        video.onerror = () => reject(new Error('load'));
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+    ]);
+    video.currentTime = 0;
+    await Promise.race([
+      new Promise((resolve, reject) => {
+        video.onseeked = resolve;
+        video.onerror = () => reject(new Error('seek'));
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+    ]);
+    const c = $('origCanvas'), ctx = c.getContext('2d');
+    c.width = video.videoWidth; c.height = video.videoHeight;
+    c.style.maxHeight = '200px';
+    ctx.drawImage(video, 0, 0);
+    $('preview').style.display = 'flex';
+  } catch (e) {
+    // 预览加载失败（如 file:// 被阻止），静默跳过，不影响主功能
+    console.warn('预览加载失败:', e.message);
+  }
 }
 
 async function startProcess() {
