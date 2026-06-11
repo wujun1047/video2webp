@@ -14,7 +14,6 @@ const nextConfig: NextConfig = {
       "./node_modules/@img/**/*.node",
       "./node_modules/@img/**/*.so*",
       "./node_modules/sharp/**/*.node",
-      "./bin/**/*",
     ],
   },
   turbopack: {

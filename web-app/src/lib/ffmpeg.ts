@@ -59,6 +59,58 @@ export async function extractFrames(options: {
   return listPngFrames(options.framesDir);
 }
 
+// ── img2webp 运行时自动下载 ──────────────────────
+
+const IMG2WEBP_VERSION = "1.5.0";
+const PLATFORM_MAP: Record<string, string> = {
+  "linux-x64": "linux-x86-64",
+  "linux-arm64": "linux-aarch64",
+  "darwin-x64": "mac-x86-64",
+  "darwin-arm64": "mac-arm64",
+};
+
+let img2webpPromise: Promise<string> | null = null;
+
+async function ensureImg2webp(): Promise<string> {
+  if (!img2webpPromise) {
+    img2webpPromise = doDownload();
+  }
+  return img2webpPromise;
+}
+
+async function doDownload(): Promise<string> {
+  const { chmodSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+
+  // 缓存在 /tmp，Vercel Function 实例内复用
+  const cachePath = join(tmpdir(), "img2webp");
+  if (existsSync(cachePath)) return cachePath;
+
+  const arch = `${process.platform}-${process.arch}`;
+  const release = PLATFORM_MAP[arch];
+  if (!release) throw new Error(`不支持的平台: ${arch}`);
+
+  const url = `https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${IMG2WEBP_VERSION}-${release}.tar.gz`;
+  const tmp = join(tmpdir(), `img2webp-${Date.now()}.tar.gz`);
+
+  console.log(`img2webp: 下载中 (${release})...`);
+  const { execSync } = await import("node:child_process");
+
+  try {
+    execSync(`curl -fsSL "${url}" -o "${tmp}"`, { stdio: "pipe", timeout: 30000 });
+    execSync(
+      `tar xzf "${tmp}" -C "${tmpdir()}" --strip-components=2 "*/bin/img2webp"`,
+      { stdio: "pipe" },
+    );
+    chmodSync(cachePath, 0o755);
+    console.log("img2webp: 就绪");
+  } finally {
+    try { require("node:fs").unlinkSync(tmp); } catch {}
+  }
+
+  return cachePath;
+}
+
 export async function encodeWebp(options: {
   keyedDir: string;
   outputPath: string;
@@ -73,38 +125,33 @@ export async function encodeWebp(options: {
   // 使用 Google 官方 img2webp，避免 ffmpeg WebP muxer 的 frame blending bug
   // ffmpeg 的 WebP muxer 在透明动图上会导致帧间残影（ticket #7941, #9531）
   const durationMs = Math.round(1000 / options.fps);
-  const img2webpPath = findBinary("img2webp", ["bin/img2webp"]);
-  if (!img2webpPath) {
-    throw new Error("未找到 img2webp 二进制，请检查 npm install 是否正常完成");
-  }
-  await runImg2webp(img2webpPath, frames, durationMs, options.quality, options.outputPath);
-
-  const outputStat = await stat(options.outputPath);
-  return outputStat.size;
-}
-
-async function runImg2webp(
-  binaryPath: string,
-  frames: string[],
-  durationMs: number,
-  quality: number,
-  outputPath: string,
-) {
+  const img2webpPath = await ensureImg2webp();
   await spawnPromise(
-    binaryPath,
+    img2webpPath,
     [
       "-d",
       String(durationMs),
       "-lossy",
       "-q",
-      String(quality),
+      String(options.quality),
       "-loop",
       "0",
       "-o",
-      outputPath,
+      options.outputPath,
       ...frames,
     ],
   );
+
+  const outputStat = await stat(options.outputPath);
+  return outputStat.size;
+}
+
+export async function listPngFrames(dir: string) {
+  const files = await readdir(dir);
+  return files
+    .filter((file) => file.endsWith(".png"))
+    .sort()
+    .map((file) => join(dir, file));
 }
 
 function spawnPromise(command: string, args: string[]) {
@@ -121,30 +168,9 @@ function spawnPromise(command: string, args: string[]) {
         resolve();
         return;
       }
-      reject(new Error(`img2webp 执行失败: ${stderr.slice(0, 2000)}`));
+      reject(new Error(`${command} 执行失败: ${stderr.slice(0, 2000)}`));
     });
   });
-}
-
-export async function listPngFrames(dir: string) {
-  const files = await readdir(dir);
-  return files
-    .filter((file) => file.endsWith(".png"))
-    .sort()
-    .map((file) => join(dir, file));
-}
-
-function findBinary(name: string, extraPaths: string[]) {
-  // 1. 先从项目内搜索（Vercel 通过 outputFileTracingIncludes 引入）
-  for (const p of extraPaths) {
-    const full = join(process.cwd(), p);
-    if (existsSync(full)) return full;
-  }
-  // 2. 从系统 PATH 搜索（本地开发用）
-  try {
-    return execSync(`which ${name}`, { encoding: "utf8" }).trim();
-  } catch {}
-  return null;
 }
 
 async function runFfmpeg(
