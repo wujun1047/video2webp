@@ -72,6 +72,10 @@
 | `cleanup_black.py` | 黑幕残留清理 |
 | `restore_alpha.py` / `cleanup_blue.py` / `despill*.py` | 旧流程辅助脚本，保留用于人工排查 |
 
+## Web App
+
+`web-app/` 是基于 Next.js + Vercel Blob + Vercel Function 的在线版本，功能与 CLI 管线对齐（绿幕/蓝幕键控），提供浏览器上传、在线转换、直接下载。详见 [web-app/README.md](./web-app/README.md)。
+
 ## 注意
 
 - 绿幕/蓝幕素材优先使用 `auto`、`green` 或 `blue`，不要走模型路径。

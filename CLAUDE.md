@@ -72,6 +72,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `outputs/`：最终 WebP 与中间帧目录，不纳入版本控制
 - `tmp/`：临时测试文件，仅保留已跟踪的固定调试素材
 
+## Web App
+
+`web-app/` 是 Next.js + TypeScript 的 Web 应用，通过 Vercel Function 部署。其 TypeScript 版色度键控 (`web-app/src/lib/chroma-key.ts`) 与根目录 Python 版功能对齐。该目录有独立的 [CLAUDE.md](./web-app/CLAUDE.md) 和 [README.md](./web-app/README.md)，工作时常需同时参考两个层级的文档。
+
+依赖补充（Web App 侧）：`@ffmpeg-installer/ffmpeg`、`libwebp-static`（img2webp）、`sharp`、`@vercel/blob`。
+
 ## 输出命名建议
 
 文件名应包含分辨率、帧率、质量等关键参数：

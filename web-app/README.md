@@ -114,11 +114,22 @@ vercel env pull .env.local
 
 ### 转换返回 500 错误
 
-通常是因为部署包缺少 ffmpeg 二进制。确认 `next.config.ts` 中 `outputFileTracingIncludes` 配置正确：
+通常是因为部署包缺少原生二进制（ffmpeg、sharp、libwebp）。确认 `next.config.ts` 中 `serverExternalPackages` 和 `outputFileTracingIncludes` 配置完整：
 
 ```ts
+serverExternalPackages: [
+  "@ffmpeg-installer/ffmpeg",
+  "libwebp-static",
+  "sharp",
+],
 outputFileTracingIncludes: {
-  "**/*": ["./node_modules/@ffmpeg-installer/**/ffmpeg*"],
+  "**/*": [
+    "./node_modules/@ffmpeg-installer/**/ffmpeg*",
+    "./node_modules/@img/**/*.node",
+    "./node_modules/@img/**/*.so*",
+    "./node_modules/sharp/**/*.node",
+    "./node_modules/libwebp-static/binaries/**/*",
+  ],
 },
 ```
 
