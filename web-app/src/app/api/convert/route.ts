@@ -1,4 +1,4 @@
-import { put } from "@vercel/blob";
+import { del, list, put } from "@vercel/blob";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { NextResponse } from "next/server";
@@ -30,6 +30,11 @@ export async function POST(request: Request) {
   }
 
   let paths: Awaited<ReturnType<typeof createJobPaths>> | null = null;
+
+  // 惰性清理：每次转换时顺手删除超过 1 小时的旧输出文件
+  cleanupOldOutputs().catch((err) =>
+    console.error("清理旧输出文件失败", err),
+  );
 
   try {
     const options = normalizeConvertOptions(await request.json());
@@ -82,6 +87,11 @@ export async function POST(request: Request) {
       },
     );
 
+    // 转换完成后删除 Blob 中的输入视频，避免文件积累
+    del(options.pathname).catch((err) =>
+      console.error("删除输入 Blob 文件失败", err),
+    );
+
     return NextResponse.json({
       outputUrl: output.url,
       outputPathname: output.pathname,
@@ -124,4 +134,29 @@ function stripExtension(filename: string) {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "转换失败";
+}
+
+const CLEANUP_MAX_AGE_MS = 60 * 60 * 1000; // 1 小时
+
+async function cleanupOldOutputs() {
+  const now = Date.now();
+  let cursor: string | undefined;
+
+  do {
+    const result = await list({
+      prefix: "outputs/",
+      cursor,
+      limit: 100,
+    });
+
+    for (const blob of result.blobs) {
+      if (now - blob.uploadedAt.getTime() > CLEANUP_MAX_AGE_MS) {
+        await del(blob.url).catch((err) =>
+          console.error(`删除过期文件失败: ${blob.pathname}`, err),
+        );
+      }
+    }
+
+    cursor = result.cursor;
+  } while (cursor);
 }
