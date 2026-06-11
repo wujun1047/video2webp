@@ -11,97 +11,89 @@ from pathlib import Path
 HERE = Path(__file__).parent
 DIST = HERE / 'dist'
 APP_DISPLAY = '视频转透明WebP'
-EXE_NAME = 'Video2WebP'  # ASCII 文件名，避免 Windows 编码问题
+EXE_NAME = 'Video2WebP'
 
 SYSTEM = platform.system()
 
+# Windows 上 /tmp 不存在，用 TEMP 环境变量
+if SYSTEM == 'Windows':
+    TEMP = Path(os.environ.get('TEMP', os.environ.get('TMP', '.')))
+else:
+    TEMP = Path('/tmp')
+
 
 def download(url, dest):
-    """下载文件"""
     print(f'  下载: {url}')
     urllib.request.urlretrieve(url, dest)
 
 
 def setup_macos():
-    """准备 macOS 二进制和模型"""
     bin_dir = HERE / 'bin' / 'mac'
     bin_dir.mkdir(parents=True, exist_ok=True)
 
-    # 下载 ffmpeg/ffprobe 静态构建
     if not (bin_dir / 'ffmpeg').exists():
-        print('下载 ffmpeg (macOS 静态构建)...')
-        ffmpeg_url = 'https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip'
-        download(ffmpeg_url, '/tmp/ffmpeg_mac.zip')
-        with zipfile.ZipFile('/tmp/ffmpeg_mac.zip') as z:
+        print('下载 ffmpeg (macOS)...')
+        path = str(TEMP / 'ffmpeg_mac.zip')
+        download('https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip', path)
+        with zipfile.ZipFile(path) as z:
             z.extract('ffmpeg', bin_dir)
+        (bin_dir / 'ffmpeg').chmod(0o755)
 
     if not (bin_dir / 'ffprobe').exists():
-        print('下载 ffprobe (macOS 静态构建)...')
-        ffprobe_url = 'https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip'
-        download(ffprobe_url, '/tmp/ffprobe_mac.zip')
-        with zipfile.ZipFile('/tmp/ffprobe_mac.zip') as z:
+        print('下载 ffprobe (macOS)...')
+        path = str(TEMP / 'ffprobe_mac.zip')
+        download('https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip', path)
+        with zipfile.ZipFile(path) as z:
             z.extract('ffprobe', bin_dir)
-
-    for b in [bin_dir / 'ffmpeg', bin_dir / 'ffprobe']:
-        b.chmod(0o755)
+        (bin_dir / 'ffprobe').chmod(0o755)
 
 
 def setup_windows():
-    """准备 Windows 二进制和模型"""
     bin_dir = HERE / 'bin' / 'win'
     bin_dir.mkdir(parents=True, exist_ok=True)
 
     if not (bin_dir / 'ffmpeg.exe').exists():
         print('下载 ffmpeg (Windows)...')
-        ffmpeg_url = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip'
-        download(ffmpeg_url, '/tmp/ffmpeg_win.zip')
-        with zipfile.ZipFile('/tmp/ffmpeg_win.zip') as z:
-            for name in z.namelist():
-                if name.endswith('/ffmpeg.exe') or name.endswith('/ffprobe.exe'):
-                    z.extract(name, '/tmp/ffmpeg_win_extract')
-        # 复制 exe 到 bin/win/
-        for root, _, files in os.walk('/tmp/ffmpeg_win_extract'):
+        path = str(TEMP / 'ffmpeg_win.zip')
+        extract_dir = str(TEMP / 'ffmpeg_win_extract')
+        download('https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip', path)
+        with zipfile.ZipFile(path) as z:
+            z.extractall(extract_dir)
+        # 找到 bin 目录中的 exe
+        for root, _, files in os.walk(extract_dir):
             for f in files:
                 if f in ('ffmpeg.exe', 'ffprobe.exe'):
                     shutil.copy(os.path.join(root, f), bin_dir / f)
 
 
 def setup_model():
-    """下载 U2-Net 模型"""
     model_path = HERE / 'u2net.pth'
     if not model_path.exists():
         print('下载 U2-Net 模型 (168MB)...')
-        # 使用 backgroundremover 自带的模型
         subprocess.run([sys.executable, '-c',
             'from backgroundremover.bg import u2net; '
-            'print("模型已通过 backgroundremover 下载")'
+            'print("模型已下载")'
         ], check=True, timeout=120)
-        # 模型会下载到 ~/.u2net/
         home_model = Path.home() / '.u2net' / 'u2net.pth'
         if home_model.exists():
             shutil.copy(home_model, model_path)
 
 
 def run_build():
-    """运行 PyInstaller 构建"""
     print(f'\n=== 构建 {APP_DISPLAY} ({SYSTEM}) ===\n')
 
-    # 创建数据文件列表
     datas = [('gui.html', '.')]
     model = HERE / 'u2net.pth'
     if model.exists():
         datas.append((str(model), '.u2net'))
-    scripts_dir = HERE / 'scripts'
-    for s in scripts_dir.glob('*.py'):
+    for s in (HERE / 'scripts').glob('*.py'):
         datas.append((str(s), 'scripts'))
-
     bin_platform = 'mac' if SYSTEM == 'Darwin' else 'win'
     bin_dir = HERE / 'bin' / bin_platform
     if bin_dir.exists():
         for b in bin_dir.iterdir():
             datas.append((str(b), f'bin/{bin_platform}'))
 
-    # 生成 spec 内容
     spec = f'''# -*- mode: python -*-
 import sys
 a = Analysis(['gui.py'], pathex=['{HERE}'], binaries=[], datas={datas},
@@ -121,26 +113,20 @@ if sys.platform == 'darwin':
             'CFBundleShortVersionString':'1.0.0','CFBundleVersion':'1.0.0',
             'NSHighResolutionCapable':True}})
 '''
-    spec_path = HERE / '_build.spec'
-    spec_path.write_text(spec)
+    (HERE / '_build.spec').write_text(spec)
 
-    # 运行 PyInstaller
     subprocess.run([
         sys.executable, '-m', 'PyInstaller',
-        str(spec_path), '--noconfirm',
-        '--distpath', str(DIST),
+        '--noconfirm', '--distpath', str(DIST),
         '--workpath', str(HERE / 'build'),
+        str(HERE / '_build.spec'),
     ], check=True)
 
     print(f'\n=== 构建完成 ===')
     if SYSTEM == 'Darwin':
-        app_path = DIST / f'{APP_DISPLAY}.app'
-        exe_path = DIST / EXE_NAME
-        print(f'  .app: {app_path}')
-        print(f'  可执行文件: {exe_path}')
+        print(f'  .app: {DIST / f"{APP_DISPLAY}.app"}')
     else:
-        exe_path = DIST / f'{EXE_NAME}.exe'
-        print(f'  .exe: {exe_path}')
+        print(f'  .exe: {DIST / f"{EXE_NAME}.exe"}')
 
 
 if __name__ == '__main__':
