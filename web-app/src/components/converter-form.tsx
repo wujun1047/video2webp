@@ -37,13 +37,21 @@ export function ConverterForm() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<ConvertResult | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const finalElapsedRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // 转换/上传期间计时器
+  // 转换/上传期间计时器，完成时保存最终耗时
   useEffect(() => {
     if (stage === "uploading" || stage === "converting") {
       setElapsed(0);
-      timerRef.current = setInterval(() => setElapsed((n) => n + 1), 1000);
+      finalElapsedRef.current = 0;
+      timerRef.current = setInterval(() => setElapsed((n) => {
+        finalElapsedRef.current = n + 1;
+        return n + 1;
+      }), 1000);
+    } else if (stage === "done" || stage === "error") {
+      if (timerRef.current) clearInterval(timerRef.current);
+      // elapsed 已通过 ref 保存，setState 的异步更新也通过 finalElapsedRef 保证准确
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
@@ -138,6 +146,38 @@ export function ConverterForm() {
   const downloadUrl = result
     ? `/api/download?url=${encodeURIComponent(result.outputUrl)}&name=${encodeURIComponent(downloadName)}`
     : "";
+
+  async function handleDownload() {
+    if (!result || !downloadUrl) return;
+    // 优先使用 showSaveFilePicker（Chrome/Edge 支持），弹出"另存为"对话框让用户选目录
+    const w = window as unknown as { showSaveFilePicker?: (opts: {
+      suggestedName: string;
+      types: Array<{ description: string; accept: Record<string, string[]> }>;
+    }) => Promise<{ createWritable: () => Promise<{ write: (b: Blob) => Promise<void>; close: () => Promise<void> }> }> };
+    if (w.showSaveFilePicker) {
+      try {
+        const res = await fetch(downloadUrl);
+        const blob = await res.blob();
+        const handle = await w.showSaveFilePicker({
+          suggestedName: downloadName,
+          types: [{ description: "WebP 图片", accept: { "image/webp": [".webp"] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") return; // 用户取消
+      }
+    }
+    // 回退：传统下载方式
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = downloadName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 
   return (
     <section className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_360px]">
@@ -290,13 +330,18 @@ export function ConverterForm() {
                 <dt className="text-[#c8bda9]">大小</dt>
                 <dd className="font-mono">{formatBytes(result.sizeBytes)}</dd>
               </div>
+              <div>
+                <dt className="text-[#c8bda9]">耗时</dt>
+                <dd className="font-mono">{formatElapsed(finalElapsedRef.current)}</dd>
+              </div>
             </dl>
-            <a
+            <button
               className="flex h-11 cursor-pointer items-center justify-center bg-[#f8f3e7] text-sm font-medium text-[#191714] transition hover:bg-white"
-              href={downloadUrl}
+              type="button"
+              onClick={handleDownload}
             >
               下载 WebP
-            </a>
+            </button>
           </div>
         )}
       </aside>
