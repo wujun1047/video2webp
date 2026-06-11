@@ -1,10 +1,10 @@
-# Web App 实现审查报告
+# Web App 实现审查报告（终版）
 
-审查时间：2026-06-11
+审查时间：2026-06-11，更新至 2026-06-12
 
 ## 整体评估
 
-**实现基本完整，代码质量良好**。对照 `02-execution-plan.md` 的 11 个步骤，核心功能全部落地。4 个单元测试全过，`npm run build` 通过。
+实现完整，所有验收标准通过。5 个单元测试全过，`npm run build` 通过，Vercel 生产环境正常运行。
 
 ## 验收标准达成情况
 
@@ -12,74 +12,93 @@
 |---|---|---|
 | 1 | `npm run build` 通过 | ✅ |
 | 2 | 本地 `npm run dev` 可打开页面 | ✅ |
-| 3 | 页面可选择视频文件并校验大小 | ✅ 前端按钮在 `file.size > 50MB` 时禁用 |
-| 4 | 未配置 `BLOB_READ_WRITE_TOKEN` 时返回明确错误 | ✅ upload/convert 两个接口均校验 |
-| 5 | `mode=auto\|green\|blue` 通过校验 | ✅ `isBackgroundMode()` 类型守卫 |
-| 6 | `mode=black` 被拒绝 | ✅ `MODES` 常量不包含 `black` |
-| 7 | 使用 `/tmp/<jobId>/` 完成后清理 | ✅ `finally` 块调用 `cleanupJob()` |
-| 8 | 文档说明 Vercel Blob 配置步骤和素材限制 | ✅ README 完整覆盖 |
+| 3 | 页面可选择视频文件并校验大小 | ✅ |
+| 4 | 未配置 `BLOB_READ_WRITE_TOKEN` 时返回明确错误 | ✅ |
+| 5 | `mode=auto\|green\|blue` 通过校验 | ✅ |
+| 6 | `mode=black` 被拒绝 | ✅ |
+| 7 | 使用 `/tmp/<jobId>/` 完成后清理 | ✅ |
+| 8 | 文档说明 Vercel Blob 配置步骤和素材限制 | ✅ |
 
-## 色度键控算法对比（Python vs TypeScript）
+## 实际目录结构
 
-| 步骤 | Python (`chroma_key.py`) | TypeScript (`chroma-key.ts`) |
-|---|---|---|
-| 1. 色差键 | ✅ | ✅ |
-| 2. 连续 alpha | ✅ | ✅ |
-| 3. 背景反混合 | ✅ 用纯背景像素中位数估计背景色 | ❌ 缺失 |
-| 4. 边缘带 despill | ✅ MinFilter 形态学限定边缘带 | ⚠️ 简化：对所有半透明像素做 despill |
-| 5. 软收边 (choke) | ✅ top-hat 保护细发丝 | ❌ 缺失 |
-| 6. 颜色净化 (extend) | ✅ 10+band*2 迭代延展 | ❌ 缺失 |
-
-### 影响分析
-
-- **步骤 3（背景反混合）缺失**：前景物体边缘可能出现幕布色光晕。Python 版通过反混合恢复真实前景色，TS 版直接用原始 RGB 值。
-- **步骤 4（边缘带 despill）简化**：TS 版对所有半透明像素压 B/G 通道，不限制边缘带范围。可能导致前景中合法的绿色/蓝色元素被错误去饱和。
-- **步骤 5-6 缺失**：边缘可能更粗糙，但执行文档明确写了"第一版允许简化"。
-
-**建议**：优先用真实绿幕/蓝幕素材验证效果。如果边缘光晕或锯齿明显，按以下顺序补齐：
-
-1. 背景反混合（步骤 3）
-2. 边缘带限定（步骤 4 改进）
-3. 软收边 + 颜色净化（步骤 5-6）
-
-## 发现的问题
-
-### 1. 🟡 `durationMs` 语义错误
-
-`convert/route.ts:90`：
-
-```ts
-durationMs: Math.round(1000 / effectiveFps),
+```text
+web-app/
+  docs/
+    01-solution-design.md
+    02-execution-plan.md
+    03-review.md
+  package.json
+  next.config.ts
+  tsconfig.json
+  vercel.json
+  src/
+    app/
+      api/
+        upload/route.ts      # Blob 上传 token
+        convert/route.ts     # 主转换管线
+        download/route.ts    # 同域代理下载
+        debug/route.ts       # 依赖状态诊断
+      page.tsx
+      layout.tsx
+      globals.css
+    components/
+      converter-form.tsx     # 主界面
+    lib/
+      chroma-key.ts          # 六步色度键控
+      chroma-key.test.ts
+      ffmpeg.ts              # ffmpeg 提帧 + img2webp 编码
+      temp-dir.ts            # /tmp 临时目录管理
+      validation.ts          # 限制常量 + 参数校验
+      validation.test.ts
+    types/
+      sharp.d.ts
 ```
 
-计算的是每帧间隔毫秒数，并非接口文档中标注的"durationMs"（通常理解为处理耗时）。好在 `converter-form.tsx` 没有展示这个字段，不影响用户。
+限制常量和校验逻辑合并到 `validation.ts`（未按执行文档单独建 `limits.ts`）。
 
-### 2. 🟡 目录结构微小偏差
+## 核心依赖
 
-执行文档要求创建 `src/lib/limits.ts`，实际实现将所有限制常量和校验逻辑合并到 `src/lib/validation.ts`。功能无误。
+| 包 | 用途 | 部署注意 |
+|---|---|---|
+| `@ffmpeg-installer/ffmpeg` | 提帧、视频探测 | `serverExternalPackages` + NFT 追踪 |
+| `libwebp-static` | img2webp 编码（修复 FFmpeg WebP muxer bug） | `serverExternalPackages` + NFT 追踪 |
+| `sharp` | PNG 像素读写、色度键控处理 | `serverExternalPackages` |
+| `@vercel/blob` | 视频上传和 WebP 存储 | 需 `BLOB_READ_WRITE_TOKEN` |
 
-### 3. 🟢 ffmpeg spawn 无超时控制
+## 色度键控算法
 
-`ffmpeg.ts` 的 `runFfmpeg` 使用 `child_process.spawn`，未设置超时。生产环境由 Vercel `maxDuration=300` 秒兜底，风险可控。
+已从 Python `chroma_key.py` 完整移植六步算法：
 
-### 4. 🟢 globals.css 冗余 dark mode 规则
+| 步骤 | 内容 | 实现 |
+|---|---|---|
+| 1. 色差键 | key = 幕布通道 - max(另两通道) | ✅ |
+| 2. 连续 alpha | 线性过渡 low=20~high=90 | ✅ |
+| 3. 背景反混合 | 中位数估计背景色，反解前景 | ✅ |
+| 4. 边缘带 despill | MinFilter 限定边缘带，保护前景合法色 | ✅ |
+| 5. 软收边 | top-hat 保护细发丝，外圈 alpha 减半 | ✅ |
+| 6. 颜色净化 | 核心色 18 次迭代向外延展 | ✅ |
 
-`globals.css` 中有 `@media (prefers-color-scheme: dark)` 规则，但页面组件全部使用硬编码 Tailwind 颜色值（如 `bg-[#f6f4ef]`），不依赖 CSS 变量。属 `create-next-app` 模板遗留。
+## 部署问题与解决方案
 
-### 5. 🟢 `src/types/sharp.d.ts` 可能冗余
+| 问题 | 根因 | 方案 |
+|---|---|---|
+| ffmpeg 500 | NFT 追踪未包含 Linux 二进制 | `outputFileTracingIncludes` + `serverExternalPackages` |
+| sharp 500 | 被 webpack 打包后找不到 libvips | 加入 `serverExternalPackages` |
+| 动图残影 | FFmpeg WebP muxer frame blending bug (ticket #7941) | 改用 `libwebp-static` 的 `img2webp` |
+| 下载按钮不触发另存为 | 跨域 `<a download>` 被忽略 | 同域 `/api/download` 代理 + `Content-Disposition: attachment` |
+| 下载无法选目录 | 浏览器安全限制 | `showSaveFilePicker` API (Chrome/Edge) + 传统回退 |
 
-sharp 0.35+ 自带类型声明，独立的 `.d.ts` 可能不需要。
+## 已实现增强功能
 
-## 架构设计亮点
+- **文件清理**：输入视频即时删除 + 输出文件惰性清理（超 1 小时自动删）
+- **转换计时器**：上传/转换期间显示已等待秒数和"请不要关闭页面"警告
+- **完成耗时**：转换结束后显示总耗时
+- **版本号**：页面底部显示北京时间构建版本号（`vYYYYMMDD.HHmm`）
+- **诊断端点**：`/api/debug` 可排查原生依赖状态
 
-1. **Vercel Blob client upload 绕开 4.5MB 限制**：前端直传 Blob，后端只收 URL，遵循 Vercel Function 最佳实践。
+## 已知限制
 
-2. **独立 jobId 隔离**：`temp-dir.ts` 使用 `mkdtemp` 创建独立临时目录，避免并发任务互相干扰。
-
-3. **参数校验层**：`validation.ts` 的 `normalizeConvertOptions` 统一校验，含 Blob URL 域名白名单（`isTrustedBlobUrl`），防止 SSRF 攻击。
-
-4. **错误信息对用户友好**：`getErrorMessage` 过滤堆栈，只返回 `error.message`。
-
-5. **前端状态机清晰**：`Stage` 类型覆盖 `idle → uploading → converting → done/error` 完整流程，上传中禁用提交按钮防止重复提交。
-
-6. **Vercel 配置合理**：`vercel.json` 为 convert 函数分配 3009MB 内存和 300s 超时，next.config.ts 配置 `serverExternalPackages` 确保 ffmpeg 二进制正确打包。
+- 仅支持绿幕/蓝幕，不支持 black 模式和复杂背景
+- Hobby 计划并发上限（1-2 个），大并发需迁 Cloud Run
+- 输出 WebP > 20MB 会报错（保护限制）
+- `showSaveFilePicker` 仅 Chrome/Edge 支持，Safari/Firefox 回退传统下载

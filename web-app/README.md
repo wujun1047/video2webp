@@ -71,6 +71,13 @@ vercel blob create-store video2webp --access public --yes
 vercel --prod
 ```
 
+## 功能特性
+
+- 上传中显示进度百分比，转换中显示计时器和"请不要关闭页面"警告
+- 转换完成后显示总耗时、帧数、文件大小
+- 下载时在 Chrome/Edge 中弹出"另存为"对话框（可选择保存目录），其他浏览器回退传统下载
+- 文件名含转换参数：`<原视频名>_<分辨率>px_<帧率>fps_q<质量>_<时间戳>.webp`
+
 ## 验证
 
 ```bash
