@@ -57,4 +57,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Windows-App
-          path: desktop-app/dist/视频转透明WebP.exe
+          path: desktop-app/dist/Video2WebP.exe
