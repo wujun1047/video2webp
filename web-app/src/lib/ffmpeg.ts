@@ -71,6 +71,9 @@ export async function encodeWebp(options: {
     String(options.fps),
     "-i",
     framePattern,
+    // yuva420p 像素格式确保 WebP 输出保留 alpha 通道，避免帧间残影
+    "-pix_fmt",
+    "yuva420p",
     "-loop",
     "0",
     "-c:v",

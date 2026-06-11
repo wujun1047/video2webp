@@ -103,6 +103,19 @@ export function ConverterForm() {
     setStage("error");
   }
 
+  async function handleDownload() {
+    if (!result) return;
+    // 跨域 Blob URL 不响应 <a download>，需 fetch 后创建本地 Blob URL 触发下载
+    const res = await fetch(result.outputUrl);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "output.webp";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_360px]">
       <div className="flex flex-col gap-5">
@@ -244,13 +257,13 @@ export function ConverterForm() {
                 <dd className="font-mono">{formatBytes(result.sizeBytes)}</dd>
               </div>
             </dl>
-            <a
+            <button
               className="flex h-11 items-center justify-center bg-[#f8f3e7] text-sm font-medium text-[#191714]"
-              href={result.outputUrl}
-              download
+              type="button"
+              onClick={handleDownload}
             >
               下载 WebP
-            </a>
+            </button>
           </div>
         )}
       </aside>
