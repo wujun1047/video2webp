@@ -1,9 +1,0 @@
-bin/
-dist/
-build/
-__pycache__/
-u2net.pth
-outputs/*
-!outputs/.gitkeep
-*.spec
-.DS_Store

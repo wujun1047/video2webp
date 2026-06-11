@@ -1,3 +1,0 @@
-flask>=3.0
-backgroundremover>=0.4.1
-Pillow>=10.0
