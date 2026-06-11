@@ -88,7 +88,7 @@ flowchart LR
   API -->|"下载输入视频到 /tmp"| B1
   API -->|"ffmpeg 提帧"| TMP1["/tmp/job-id/frames"]
   TMP1 -->|"TypeScript 色度键控"| TMP2["/tmp/job-id/nobg"]
-  TMP2 -->|"ffmpeg/libwebp 合成 WebP"| OUT["/tmp/job-id/output.webp"]
+  TMP2 -->|"img2webp 合成 WebP"| OUT["/tmp/job-id/output.webp"]
   API -->|"上传结果"| B2["Vercel Blob: output"]
   API -->|"返回下载链接"| UI
   UI -->|"下载 WebP"| U
@@ -117,7 +117,7 @@ flowchart LR
 - 使用 `@ffmpeg-installer/ffmpeg` 提供 ffmpeg 二进制。
 - 用 ffmpeg 提帧为 PNG。
 - 用 TypeScript 移植 `chroma_key.py` 的核心算法。
-- 用 ffmpeg 合成 animated WebP。
+- 用 `libwebp-static` 的 `img2webp` 合成 animated WebP（ffmpeg WebP muxer 存在透明动图帧间残影 bug）。
 
 备选方案：
 
@@ -217,7 +217,7 @@ Vercel 侧要求：
 - 使用 Node.js runtime。
 - 设置 `maxDuration` 为 300 秒。
 - Hobby 计划 Function 内存上限 2048 MB（`vercel.json` 中配置）。
-- `next.config.ts` 需配置 `outputFileTracingIncludes`，确保 ffmpeg 二进制被包含在部署包中。
+- `next.config.ts` 需配置 `serverExternalPackages` 和 `outputFileTracingIncludes`，确保 ffmpeg、sharp、libwebp-static 等原生二进制被包含在部署包中。
 - 确认 Function bundle 未超过 Vercel 限制。
 
 本地开发要求：

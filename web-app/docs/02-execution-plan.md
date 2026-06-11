@@ -45,6 +45,8 @@ web-app/
       api/
         upload/route.ts
         convert/route.ts
+        download/route.ts
+        debug/route.ts
       page.tsx
       layout.tsx
       globals.css
@@ -57,6 +59,8 @@ web-app/
       temp-dir.ts
       validation.ts
       validation.test.ts
+    types/
+      sharp.d.ts
 ```
 
 ## 4. 实施步骤
@@ -87,15 +91,16 @@ npm run build
 命令：
 
 ```bash
-npm install @vercel/blob @ffmpeg-installer/ffmpeg sharp
+npm install @vercel/blob @ffmpeg-installer/ffmpeg sharp libwebp-static
 npm install -D @types/node
 ```
 
 说明：
 
 - `@vercel/blob`：上传输入视频和输出 WebP。
-- `@ffmpeg-installer/ffmpeg`：提供 ffmpeg 二进制。
+- `@ffmpeg-installer/ffmpeg`：提供 ffmpeg 二进制（视频探测、提帧）。
 - `sharp`：读取和写入 PNG 像素，移植 `chroma_key.py` 核心算法。
+- `libwebp-static`：提供 Google 官方 `img2webp` 二进制（合成 WebP 动图，避免 ffmpeg WebP muxer 的透明动图帧间残影 bug）。
 
 验证：
 
@@ -169,9 +174,9 @@ npm run build
   - 使用 `scale` 限制最大边长。
   - 输出 `frame_%04d.png`。
 - `encodeWebp()`：
-  - 使用 `-loop 0`
-  - 使用 `-q:v` 或合适的 WebP 参数
-  - 保留 alpha。
+  - 使用 `libwebp-static` 的 `img2webp` 合成 WebP（非 ffmpeg，因 ffmpeg WebP muxer 在透明动图上存在帧间残影 bug，见 ticket #7941）。
+  - 参数：`-d <durationMs>`（帧间隔）、`-lossy`、`-q <quality>`、`-loop 0`（无限循环）。
+  - 输出到 `/tmp/jobId/output.webp`，返回文件字节数。
 
 验证：
 
@@ -277,14 +282,14 @@ export const maxDuration = 300;
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "src/app/api/convert/route.ts": {
-      "memory": 3009,
+      "memory": 2048,
       "maxDuration": 300
     }
   }
 }
 ```
 
-如果 Vercel 对 Next.js App Router 的函数匹配不接受该路径，以 Route Handler 内的 `export const maxDuration = 300` 为准，并按 Vercel 构建报错调整。
+Hobby 计划内存上限 2048 MB，该配置即为此上限。如果 Vercel 对 Next.js App Router 的函数匹配不接受该路径，以 Route Handler 内的 `export const maxDuration = 300` 为准，并按 Vercel 构建报错调整。
 
 验证：
 
