@@ -1,7 +1,7 @@
 "use client";
 
 import { upload } from "@vercel/blob/client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   DEFAULT_MAX_FPS,
@@ -36,6 +36,28 @@ export function ConverterForm() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ConvertResult | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [downloading, setDownloading] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 转换/上传期间计时器
+  useEffect(() => {
+    if (stage === "uploading" || stage === "converting") {
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed((n) => n + 1), 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [stage]);
+
+  function formatElapsed(s: number) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m > 0 ? `${m}分${sec}秒` : `${sec}秒`;
+  }
 
   const canSubmit = file && stage !== "uploading" && stage !== "converting";
   const statusText = useMemo(() => {
@@ -104,16 +126,25 @@ export function ConverterForm() {
   }
 
   async function handleDownload() {
-    if (!result) return;
-    // 跨域 Blob URL 不响应 <a download>，需 fetch 后创建本地 Blob URL 触发下载
-    const res = await fetch(result.outputUrl);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "output.webp";
-    a.click();
-    URL.revokeObjectURL(url);
+    if (!result || downloading) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(result.outputUrl);
+      if (!res.ok) throw new Error("下载失败");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "output.webp";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "下载失败");
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -239,6 +270,17 @@ export function ConverterForm() {
           />
         </div>
 
+        {(stage === "uploading" || stage === "converting") && (
+          <div className="flex flex-col gap-2 text-sm">
+            <p className="font-mono text-[#c8bda9]">
+              已等待 {formatElapsed(elapsed)}
+            </p>
+            <p className="flex items-center gap-2 rounded border border-[#5a4a2f] bg-[#2d2410] px-3 py-2 text-[#ffd98c]">
+              ⚠️ 转换中，请不要关闭页面
+            </p>
+          </div>
+        )}
+
         {error && (
           <p className="border border-[#a9533d] bg-[#3d211a] p-3 text-sm text-[#ffd9cb]">
             {error}
@@ -258,11 +300,12 @@ export function ConverterForm() {
               </div>
             </dl>
             <button
-              className="flex h-11 items-center justify-center bg-[#f8f3e7] text-sm font-medium text-[#191714]"
+              className="flex h-11 cursor-pointer items-center justify-center bg-[#f8f3e7] text-sm font-medium text-[#191714] transition hover:bg-white disabled:cursor-wait disabled:opacity-60"
               type="button"
+              disabled={downloading}
               onClick={handleDownload}
             >
-              下载 WebP
+              {downloading ? "下载中…" : "下载 WebP"}
             </button>
           </div>
         )}

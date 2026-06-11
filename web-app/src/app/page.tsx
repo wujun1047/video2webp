@@ -33,6 +33,8 @@ export default function Home() {
 function formatBuildTime(iso: string | undefined) {
   if (!iso) return "";
   const d = new Date(iso);
+  // 转换为北京时间 (UTC+8)
+  const bj = new Date(d.getTime() + 8 * 60 * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `v${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.${pad(d.getHours())}${pad(d.getMinutes())}`;
+  return `v${bj.getUTCFullYear()}${pad(bj.getUTCMonth() + 1)}${pad(bj.getUTCDate())}.${pad(bj.getUTCHours())}${pad(bj.getUTCMinutes())}`;
 }
