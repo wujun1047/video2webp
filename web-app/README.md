@@ -26,6 +26,14 @@
 
 30fps 会更流畅，但转换更慢。若转换超时，优先改用 24fps 或 15fps。
 
+## 文件生命周期
+
+- **输入视频**：转换完成后立即从 Blob 删除。
+- **输出 WebP**：每次转换时自动清理超过 1 小时的旧文件。
+- **`/tmp` 中间文件**：每次请求结束后自动清除。
+
+日常使用即可自清理，无需手动管理。
+
 ## 本地开发
 
 ```bash
@@ -53,14 +61,13 @@ vercel env pull .env.local
 
 没有该变量时，上传和转换接口会返回明确错误。
 
-## 部署
-
-推荐用 Vercel Git 集成部署。
-
-也可以使用 CLI：
+## 命令行部署
 
 ```bash
-vercel
+# 创建并链接 Blob Store（只需一次）
+vercel blob create-store video2webp --access public --yes
+
+# 部署
 vercel --prod
 ```
 
@@ -85,6 +92,11 @@ npm run build
 
 说明 Vercel Blob 没配置好。先创建 Blob Store，再拉取或设置环境变量。
 
+```bash
+vercel blob create-store video2webp --access public --yes
+vercel env pull .env.local
+```
+
 ### 提示未检测到绿幕或蓝幕
 
 自动检测只看画面四角的主导颜色。可以手动选择绿幕或蓝幕重试。复杂背景暂不支持。
@@ -92,6 +104,16 @@ npm run build
 ### 转换超时
 
 降低帧率、降低最大边长或裁剪视频时长。Vercel Function 不是长视频转码服务。
+
+### 转换返回 500 错误
+
+通常是因为部署包缺少 ffmpeg 二进制。确认 `next.config.ts` 中 `outputFileTracingIncludes` 配置正确：
+
+```ts
+outputFileTracingIncludes: {
+  "**/*": ["./node_modules/@ffmpeg-installer/**/ffmpeg*"],
+},
+```
 
 ### 输出文件过大
 

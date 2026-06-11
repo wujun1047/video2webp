@@ -180,9 +180,9 @@ flowchart LR
 
 - 输入视频上传到 Blob 的 `inputs/` 前缀。
 - 输出 WebP 上传到 Blob 的 `outputs/` 前缀。
-- `/tmp/job-id/` 只保存处理期间的中间文件。
-- Function 完成或失败都尝试删除 `/tmp/job-id/`。
-- 第一版不实现自动清理 Blob 历史文件，文档中提示需要在 Vercel 控制台定期清理。
+- 转换完成后立即删除输入视频，防止 Blob 文件堆积。
+- 惰性清理：每次转换时扫描 `outputs/`，删除超过 1 小时的旧 WebP。
+- `/tmp/job-id/` 只保存处理期间的中间文件，`finally` 块确保清理。
 
 ## 9. 错误处理
 
@@ -212,10 +212,12 @@ flowchart LR
 
 Vercel 侧要求：
 
-- 创建 Vercel Blob Store。
+- 创建 Vercel Blob Store（`vercel blob create-store video2webp --access public --yes`）。
 - 让项目获得 `BLOB_READ_WRITE_TOKEN`。
 - 使用 Node.js runtime。
 - 设置 `maxDuration` 为 300 秒。
+- Hobby 计划 Function 内存上限 2048 MB（`vercel.json` 中配置）。
+- `next.config.ts` 需配置 `outputFileTracingIncludes`，确保 ffmpeg 二进制被包含在部署包中。
 - 确认 Function bundle 未超过 Vercel 限制。
 
 本地开发要求：
@@ -228,11 +230,11 @@ Vercel 侧要求：
 
 | 风险 | 影响 | 应对 |
 |---|---|---|
-| ffmpeg 二进制在 Vercel 不可用 | 无法提帧或合成 | 先用 `@ffmpeg-installer/ffmpeg` 验证，失败则切 Cloud Run |
+| ffmpeg 二进制在 Vercel 不可用 | 无法提帧或合成 | 已通过 `outputFileTracingIncludes` + `serverExternalPackages` 解决 |
 | Function `/tmp` 空间不足 | 中途失败 | 限制 50 MB、8 秒、720px、24fps 默认，30fps 作为高质量模式 |
 | 输出 WebP 过大 | 上传慢、下载慢 | 限制质量和帧率，必要时增加输出大小校验 |
 | 转换超过 maxDuration | 504 | 限制素材长度，后续改异步队列 |
-| Blob 文件积累 | 成本增长 | 文档提示手动清理，后续加定期清理 |
+| Blob 文件积累 | 成本增长 | 已实现输入即时删除 + 输出惰性清理（超 1 小时自动删），无需人工干预 |
 
 ## 13. 自审
 

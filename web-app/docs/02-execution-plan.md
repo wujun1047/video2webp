@@ -52,10 +52,11 @@ web-app/
       converter-form.tsx
     lib/
       chroma-key.ts
+      chroma-key.test.ts
       ffmpeg.ts
-      limits.ts
       temp-dir.ts
       validation.ts
+      validation.test.ts
 ```
 
 ## 4. 实施步骤
@@ -102,9 +103,9 @@ npm install -D @types/node
 npm run build
 ```
 
-### 步骤 3：定义限制常量
+### 步骤 3：定义限制常量与校验
 
-文件：`src/lib/limits.ts`
+文件：`src/lib/validation.ts`（实际实现合并至此处，未单独创建 `limits.ts`）
 
 内容要求：
 
@@ -115,6 +116,7 @@ npm run build
 - `DEFAULT_MAX_SIZE = 720`
 - `MAX_OUTPUT_BYTES = 20 * 1024 * 1024`
 - 允许的模式：`auto`、`green`、`blue`
+- `normalizeConvertOptions()` 统一校验，含 Blob URL 域名白名单
 
 验证：
 
