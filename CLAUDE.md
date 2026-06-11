@@ -4,70 +4,85 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-将视频（mov/mp4）转为透明背景的 WebP 动图工具集。支持黑色、蓝色、绿色等多种背景色。处理流水线：视频 → 帧提取 → 去背景 → 后处理 → 合成 WebP。
+将 `mov` / `mp4` 视频转换为透明背景 WebP 动图。
+
+当前主路径面向绿幕/蓝幕素材：视频 → 帧提取 → 色度键控去背景 → 合成 WebP。黑幕素材保留旧的 `backgroundremover + cleanup_black.py` 流程。复杂自然背景暂不支持。
 
 ## 外部依赖
 
 - **ffmpeg / ffprobe**：帧提取与帧率检测
 - **img2webp**（webp 包）：帧合成 WebP 动图
-- **backgroundremover 0.4.1**：Python 包，基于 U2-Net 深度学习模型去除图片背景
-  - 实际安装在 miniforge3 全局环境（`/Users/wujunyang/miniforge3/bin/backgroundremover`）
-  - 模型文件：`~/.u2net/u2net.pth`（首次运行自动下载）
-- **Python 3.12 + Pillow**：后处理脚本，使用 `.venv` 虚拟环境（`uv venv` 创建）
+- **Python 3.12 + numpy + Pillow**：`chroma_key.py` 色度键控和后处理脚本
+- **backgroundremover 0.4.1**：仅黑幕路径使用，基于 U2-Net
+  - 实际安装在 miniforge3 全局环境：`/Users/wujunyang/miniforge3/bin/backgroundremover`
+  - 模型文件：`~/.u2net/u2net.pth`
 
 ## 环境说明
 
-- `video2webp.sh` 中通过 `source .venv/bin/activate` 激活虚拟环境，但 `backgroundremover` 实际由 miniforge3 全局环境提供
-- `.venv` 主要为后处理脚本提供 Pillow 依赖
+- `video2webp.sh` 会激活项目根目录 `.venv`
+- `.venv` 主要提供 `numpy`、`Pillow`
+- 黑幕路径仍依赖全局 `backgroundremover`
 
 ## 核心脚本
 
 | 脚本 | 用途 |
 |---|---|
-| `video2webp.sh` | 主流程：提取帧 → 4 并发 backgroundremover → 合成 WebP |
-| `restore_alpha.py` | 前景修复：用原图颜色恢复被去背景模型误判的前景像素（修复镂空和变黑） |
-| `cleanup_blue.py` | 蓝幕清理：原图中蓝色背景像素（B>150, R<80, B>G×2）→ 透明 |
-| `cleanup_black.py` | 黑幕清理：原图中暗像素（max RGB ≤ 15）→ 透明 |
-| `despill_blue.py` | 蓝幕溢色修复：压制 B 通道到 (R+G)/2 |
-| `despill.py` | 绿幕溢色修复：压制 G 通道到 (R+B)/2 |
+| `video2webp.sh` | 主流程：提取帧 → 去背景 → 合成 WebP |
+| `chroma_key.py` | 绿幕/蓝幕色度键控去背景，当前主路径 |
+| `cleanup_black.py` | 黑幕残留清理 |
+| `restore_alpha.py` | 旧蓝幕流程中的前景修复脚本，保留用于人工排查 |
+| `cleanup_blue.py` | 旧蓝幕流程中的蓝幕残留清理脚本 |
+| `despill_blue.py` | 旧蓝幕流程中的蓝色溢色修复脚本 |
+| `despill.py` | 旧绿幕流程中的绿色溢色修复脚本 |
 
 ## 常用命令
 
 ```bash
-# 完整转换（主流程）
-./video2webp.sh Assets/input.mov outputs/output.webp [quality]
+# 自动检测绿幕/蓝幕
+./video2webp.sh Assets/input.mov outputs/input_720x720_30fps_q85.webp 85 auto
 
-# 蓝幕视频后处理（按顺序执行）
-python3 restore_alpha.py outputs/<name>_frames outputs/<name>_nobg
-python3 cleanup_blue.py outputs/<name>_frames outputs/<name>_nobg
-python3 despill_blue.py outputs/<name>_nobg
+# 明确指定绿幕或蓝幕
+./video2webp.sh Assets/input.mov outputs/input_720x720_30fps_q85_green.webp 85 green
+./video2webp.sh Assets/input.mov outputs/input_720x720_30fps_q85_blue.webp 85 blue
 
-# 黑幕/绿幕视频后处理
-python3 cleanup_black.py outputs/<name>_frames outputs/<name>_nobg
-python3 despill.py outputs/<name>_nobg
-
-# 用清理后的帧重新合成 WebP
-img2webp -d 33 -lossy -q 85 $(ls outputs/<name>_nobg/frame_*.png | sort) -o outputs/<name>.webp
+# 黑幕素材走旧模型路径
+./video2webp.sh Assets/input.mov outputs/input_720x720_30fps_q85_black.webp 85 black
 ```
+
+命令格式：
+
+```bash
+./video2webp.sh <输入视频> [输出.webp] [quality 1-100] [auto|green|blue|black]
+```
+
+## 背景类型策略
+
+| 类型 | 处理方式 |
+|---|---|
+| `auto` | 自动检测绿幕/蓝幕，检测失败则退出并提示不支持 |
+| `green` | 强制按绿幕键控 |
+| `blue` | 强制按蓝幕键控 |
+| `black` | 使用 `backgroundremover` 后再执行 `cleanup_black.py` |
+
+复杂背景、白底、红底、普通照片背景暂不支持自动去背景。不要在复杂背景上静默回退模型，除非后续明确实现并验证新的复杂背景方案。
 
 ## 工作目录约定
 
-- `Assets/`：输入视频（mov/mp4）
-- `outputs/`：所有输出，包括中间帧目录（`<name>_frames`、`<name>_nobg`）和最终 WebP
+- `Assets/`：输入视频，不纳入版本控制
+- `outputs/`：最终 WebP 与中间帧目录，不纳入版本控制
+- `tmp/`：临时测试文件，仅保留已跟踪的固定调试素材
 
-## 处理流水线
+## 输出命名建议
 
-### 蓝幕视频
+文件名应包含分辨率、帧率、质量等关键参数：
 
-1. `video2webp.sh` 提取帧 → backgroundremover（U2-Net）去背景 → 合成 WebP
-2. `restore_alpha.py` 用原图颜色恢复被误判的前景像素
-3. `cleanup_blue.py` 清除蓝色背景残留
-4. `despill_blue.py` 修复蓝色溢色
-5. `img2webp` 重新合成最终 WebP
+```text
+<素材名>_<分辨率>_<帧率>fps_q<质量>[_green|_blue|_black].webp
+```
 
-### 黑幕/绿幕视频
+示例：
 
-1. `video2webp.sh` 提取帧 → backgroundremover 去背景 → 合成 WebP
-2. `cleanup_black.py` 清理残留背景像素（阈值 THRESHOLD=15）
-3. `despill.py` 修复绿幕溢色
-4. `img2webp` 重新合成最终 WebP
+```text
+南博-莫卧儿艺术展-720x720_30fps_q85.webp
+南博-莫卧儿艺术展-640x640_30fps_q85.webp
+```
