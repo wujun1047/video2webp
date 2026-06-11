@@ -37,7 +37,6 @@ export function ConverterForm() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<ConvertResult | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [downloading, setDownloading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 转换/上传期间计时器
@@ -125,27 +124,20 @@ export function ConverterForm() {
     setStage("error");
   }
 
-  async function handleDownload() {
-    if (!result || downloading) return;
-    setDownloading(true);
-    try {
-      const res = await fetch(result.outputUrl);
-      if (!res.ok) throw new Error("下载失败");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "output.webp";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "下载失败");
-    } finally {
-      setDownloading(false);
-    }
-  }
+  // 下载文件名：原文件名_参数_时间戳.webp
+  const downloadName = useMemo(() => {
+    if (!file || !result) return "output.webp";
+    const base = file.name.replace(/\.[^.]+$/, "").replace(/[^\w一-鿿]+/g, "-").slice(0, 50);
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    return `${base}_${maxSize}px_${maxFps}fps_q${quality}_${ts}.webp`;
+  }, [file, result, maxSize, maxFps, quality]);
+
+  // 同域代理下载 URL，避免跨域导致浏览器忽略 download 属性
+  const downloadUrl = result
+    ? `/api/download?url=${encodeURIComponent(result.outputUrl)}&name=${encodeURIComponent(downloadName)}`
+    : "";
 
   return (
     <section className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1.2fr)_360px]">
@@ -299,14 +291,12 @@ export function ConverterForm() {
                 <dd className="font-mono">{formatBytes(result.sizeBytes)}</dd>
               </div>
             </dl>
-            <button
-              className="flex h-11 cursor-pointer items-center justify-center bg-[#f8f3e7] text-sm font-medium text-[#191714] transition hover:bg-white disabled:cursor-wait disabled:opacity-60"
-              type="button"
-              disabled={downloading}
-              onClick={handleDownload}
+            <a
+              className="flex h-11 cursor-pointer items-center justify-center bg-[#f8f3e7] text-sm font-medium text-[#191714] transition hover:bg-white"
+              href={downloadUrl}
             >
-              {downloading ? "下载中…" : "下载 WebP"}
-            </button>
+              下载 WebP
+            </a>
           </div>
         )}
       </aside>
