@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "src/app/api/convert/route.ts": {
-      "memory": 3009,
+      "memory": 2048,
       "maxDuration": 300
     }
   }
