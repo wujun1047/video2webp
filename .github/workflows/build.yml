@@ -37,6 +37,9 @@ jobs:
   # ---- Windows ----
   build-win:
     runs-on: windows-latest
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
 
