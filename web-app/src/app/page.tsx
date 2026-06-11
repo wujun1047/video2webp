@@ -19,7 +19,20 @@ export default function Home() {
         </header>
 
         <ConverterForm />
+
+        <footer className="mt-auto border-t border-[#d8d1c3] pt-4 pb-2 text-center">
+          <p className="font-mono text-xs text-[#aaa194]">
+            {formatBuildTime(process.env.NEXT_PUBLIC_BUILD_TIME)}
+          </p>
+        </footer>
       </div>
     </main>
   );
+}
+
+function formatBuildTime(iso: string | undefined) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `v${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.${pad(d.getHours())}${pad(d.getMinutes())}`;
 }
