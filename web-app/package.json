@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "postinstall": "node scripts/install-img2webp.js"
+    "postinstall": "node scripts/install-img2webp.js",
+    "prebuild": "node scripts/install-img2webp.js"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
