@@ -328,13 +328,23 @@ export function chromaKeyRgba(
   }
 
   // ── 组装输出 RGBA ─────────────────────────────
+  // 关键：低 alpha 像素（< 4%）强制归零，防止动图帧间残影
+  const MIN_ALPHA = 10; // 低于此值的 alpha 视为全透明
   const output = new Uint8ClampedArray(pixelCount * 4);
   for (let i = 0; i < pixelCount; i++) {
     const idx = i * 4;
-    output[idx] = clamp(Math.round(fg[i * 3]), 0, 255);
-    output[idx + 1] = clamp(Math.round(fg[i * 3 + 1]), 0, 255);
-    output[idx + 2] = clamp(Math.round(fg[i * 3 + 2]), 0, 255);
-    output[idx + 3] = Math.round(alpha[i] * 255);
+    const a255 = Math.round(alpha[i] * 255);
+    if (a255 < MIN_ALPHA) {
+      output[idx] = 0;
+      output[idx + 1] = 0;
+      output[idx + 2] = 0;
+      output[idx + 3] = 0;
+    } else {
+      output[idx] = clamp(Math.round(fg[i * 3]), 0, 255);
+      output[idx + 1] = clamp(Math.round(fg[i * 3 + 1]), 0, 255);
+      output[idx + 2] = clamp(Math.round(fg[i * 3 + 2]), 0, 255);
+      output[idx + 3] = a255;
+    }
   }
 
   return output;
