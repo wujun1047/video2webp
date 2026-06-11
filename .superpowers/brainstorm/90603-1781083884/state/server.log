@@ -1,8 +1,0 @@
-{"type":"server-started","port":54634,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:54634","screen_dir":"/Users/wujunyang/Dev/AI/0-MyPorjects/GenerateWebp/.superpowers/brainstorm/90603-1781083884/content","state_dir":"/Users/wujunyang/Dev/AI/0-MyPorjects/GenerateWebp/.superpowers/brainstorm/90603-1781083884/state"}
-{"type":"screen-added","file":"/Users/wujunyang/Dev/AI/0-MyPorjects/GenerateWebp/.superpowers/brainstorm/90603-1781083884/content/waiting.html"}
-{"type":"screen-added","file":"/Users/wujunyang/Dev/AI/0-MyPorjects/GenerateWebp/.superpowers/brainstorm/90603-1781083884/content/layout.html"}
-{"source":"user-event","type":"click","text":"A\n    \n      单页流程式\n      所有操作在一页内完成：上传 → 设置 → 开始 → 进度 → 下载。类似一个表单从头走到尾，简单直接","choice":"a","id":null,"timestamp":1781084074920}
-{"source":"user-event","type":"click","text":"A\n    \n      单页流程式\n      所有操作在一页内完成：上传 → 设置 → 开始 → 进度 → 下载。类似一个表单从头走到尾，简单直接","choice":"a","id":null,"timestamp":1781084075743}
-{"source":"user-event","type":"click","text":"A\n    \n      单页流程式\n      所有操作在一页内完成：上传 → 设置 → 开始 → 进度 → 下载。类似一个表单从头走到尾，简单直接","choice":"a","id":null,"timestamp":1781084075941}
-{"type":"screen-added","file":"/Users/wujunyang/Dev/AI/0-MyPorjects/GenerateWebp/.superpowers/brainstorm/90603-1781083884/content/design.html"}
-{"type":"screen-added","file":"/Users/wujunyang/Dev/AI/0-MyPorjects/GenerateWebp/.superpowers/brainstorm/90603-1781083884/content/waiting-2.html"}

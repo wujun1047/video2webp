@@ -1,0 +1,57 @@
+name: Build Desktop App
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  # ---- macOS ----
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+
+      - name: Install dependencies
+        run: |
+          pip install pywebview backgroundremover torch Pillow pyinstaller onnxruntime
+
+      - name: Build
+        working-directory: desktop-app
+        run: python build_release.py
+
+      - name: Create DMG
+        run: |
+          hdiutil create -volname "视频转透明WebP" \
+            -srcfolder desktop-app/dist/视频转透明WebP.app \
+            -ov -format UDZO 视频转透明WebP-macos.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macOS-App
+          path: 视频转透明WebP-macos.dmg
+
+  # ---- Windows ----
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+
+      - name: Install dependencies
+        run: |
+          pip install pywebview backgroundremover torch Pillow pyinstaller onnxruntime
+
+      - name: Build
+        working-directory: desktop-app
+        run: python build_release.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-App
+          path: desktop-app/dist/视频转透明WebP.exe

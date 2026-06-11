@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    background: #1e1e1e; color: #ddd;
+    padding: 24px 32px;
+    user-select: none;
+  }
+  h1 { font-size: 22px; text-align: center; color: #fff; margin-bottom: 4px; }
+  .sub { text-align: center; color: #888; font-size: 13px; margin-bottom: 20px; }
+
+  .file-area {
+    border: 2px dashed #555; border-radius: 12px;
+    padding: 28px; text-align: center; cursor: pointer;
+    transition: all 0.15s; margin-bottom: 16px;
+  }
+  .file-area:hover { border-color: #888; background: #2a2a2a; }
+  .file-area.has-file { border-color: #4a9eff; background: #1a2a3a; }
+  .file-icon { font-size: 36px; margin-bottom: 8px; }
+  .file-name { color: #ccc; font-size: 14px; }
+  .file-meta { color: #888; font-size: 12px; margin-top: 4px; }
+
+  .row { display: flex; gap: 12px; margin-bottom: 16px; }
+  .col { flex: 1; }
+  label { display: block; font-size: 12px; color: #999; margin-bottom: 4px; }
+  select, input[type=range] { width: 100%; }
+  select {
+    background: #333; color: #ddd; border: 1px solid #555;
+    border-radius: 8px; padding: 8px 10px; font-size: 13px;
+    outline: none; cursor: pointer;
+  }
+  select:focus { border-color: #4a9eff; }
+  input[type=range] { accent-color: #4a9eff; margin-top: 4px; }
+  .qval { color: #4a9eff; font-weight: 600; }
+
+  .btn {
+    display: block; width: 100%; padding: 12px;
+    background: #4a9eff; color: #fff; border: none;
+    border-radius: 10px; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background 0.15s; margin-bottom: 16px;
+  }
+  .btn:hover { background: #3a8eef; }
+  .btn:disabled { background: #555; cursor: not-allowed; }
+
+  .progress-wrap { margin-bottom: 16px; display: none; }
+  .progress-text { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .progress-bar {
+    height: 6px; background: #333; border-radius: 3px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: #4a9eff; border-radius: 3px;
+    width: 0%; transition: width 0.3s;
+  }
+
+  .preview { display: flex; gap: 12px; margin-bottom: 16px; display: none; }
+  .preview-box { flex: 1; text-align: center; }
+  .preview-box canvas { max-width: 100%; border-radius: 8px; border: 1px solid #444; }
+  .preview-label { font-size: 11px; color: #888; margin-top: 4px; }
+
+  .done-box { text-align: center; margin-bottom: 16px; display: none; }
+  .done-icon { font-size: 28px; color: #4caf50; }
+  .done-text { color: #4caf50; font-size: 14px; }
+
+  .actions { display: flex; gap: 10px; display: none; }
+  .btn-save { background: #4caf50; }
+  .btn-save:hover { background: #43a047; }
+  .btn-reset { background: #555; }
+  .btn-reset:hover { background: #666; }
+
+  .error { color: #f44336; font-size: 13px; text-align: center; display: none; margin-bottom: 12px; }
+
+  .checkerboard {
+    background-image:
+      linear-gradient(45deg, #333 25%, transparent 25%),
+      linear-gradient(-45deg, #333 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #333 75%),
+      linear-gradient(-45deg, transparent 75%, #333 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  }
+</style>
+</head>
+<body>
+
+<h1>视频转透明 WebP</h1>
+<p class="sub">纯本地处理，不上传网络</p>
+
+<div class="file-area" id="fileArea" onclick="selectFile()">
+  <div class="file-icon" id="fileIcon">📁</div>
+  <div class="file-name" id="fileName">点击选择视频文件</div>
+  <div class="file-meta" id="fileMeta">支持 MOV / MP4</div>
+</div>
+
+<div class="row">
+  <div class="col">
+    <label>背景颜色</label>
+    <select id="bgType">
+      <option value="auto">自动检测</option>
+      <option value="green">绿色</option>
+      <option value="blue">蓝色</option>
+      <option value="black">黑色</option>
+    </select>
+  </div>
+  <div class="col">
+    <label>质量: <span class="qval" id="qVal">85</span></label>
+    <input type="range" id="quality" min="10" max="100" value="85" oninput="$('qVal').textContent=this.value">
+  </div>
+</div>
+
+<button class="btn" id="startBtn" onclick="startProcess()" disabled>开始处理</button>
+
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-text">
+    <span id="stageText"></span>
+    <span id="msgText"></span>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<div class="preview" id="preview">
+  <div class="preview-box">
+    <canvas id="origCanvas"></canvas>
+    <div class="preview-label">原始帧</div>
+  </div>
+  <div class="preview-box">
+    <canvas id="procCanvas" class="checkerboard"></canvas>
+    <div class="preview-label">去背景后</div>
+  </div>
+</div>
+
+<div class="error" id="errorBox"></div>
+
+<div class="done-box" id="doneBox">
+  <div class="done-icon">✅</div>
+  <div class="done-text">处理完成</div>
+</div>
+
+<div class="actions" id="actions">
+  <button class="btn btn-save" onclick="saveFile()">💾 保存 WebP</button>
+  <button class="btn btn-reset" onclick="resetAll()">重新处理</button>
+</div>
+
+<script>
+function $(id) { return document.getElementById(id); }
+
+let videoPath = null;
+let videoBlobUrl = null;
+let pollTimer = null;
+
+async function selectFile() {
+  const result = await pywebview.api.select_file();
+  if (!result) return;
+  const info = JSON.parse(result);
+  if (info.error) { showError(info.error); return; }
+
+  videoPath = info.path;
+  $('fileArea').classList.add('has-file');
+  $('fileIcon').textContent = '🎬';
+  $('fileName').textContent = info.filename;
+  $('fileMeta').textContent = `${info.width}×${info.height}, ${info.fps}fps, ${info.size_mb}MB`;
+  $('startBtn').disabled = false;
+
+  // 预览首帧
+  const video = document.createElement('video');
+  video.preload = 'auto'; video.muted = true;
+  const url = 'file://' + info.path;
+  video.src = url;
+  videoBlobUrl = url;
+  await new Promise(r => { video.onloadedmetadata = r; });
+  video.currentTime = 0;
+  await new Promise(r => { video.onseeked = r; });
+  const c = $('origCanvas'), ctx = c.getContext('2d');
+  c.width = video.videoWidth; c.height = video.videoHeight;
+  c.style.maxHeight = '200px';
+  ctx.drawImage(video, 0, 0);
+  $('preview').style.display = 'flex';
+}
+
+async function startProcess() {
+  if (!videoPath) return;
+  $('startBtn').disabled = true;
+  $('errorBox').style.display = 'none';
+  $('doneBox').style.display = 'none';
+  $('actions').style.display = 'none';
+  $('progressWrap').style.display = 'block';
+  $('progressFill').style.width = '0%';
+
+  const params = JSON.stringify({
+    path: videoPath,
+    bg_type: $('bgType').value,
+    quality: parseInt($('quality').value),
+  });
+
+  const resp = await pywebview.api.start_process(params);
+  const data = JSON.parse(resp);
+  if (data.error) { showError(data.error); return; }
+
+  pollTimer = setInterval(async () => {
+    const p = JSON.parse(await pywebview.api.get_progress());
+    $('stageText').textContent = stageLabel(p.stage);
+    $('msgText').textContent = p.message;
+    if (p.total > 0) {
+      $('progressFill').style.width = Math.round(p.current / p.total * 100) + '%';
+    }
+
+    if (p.stage === 'done') {
+      clearInterval(pollTimer);
+      $('progressWrap').style.display = 'none';
+      $('doneBox').style.display = 'block';
+      $('actions').style.display = 'flex';
+    }
+    if (p.stage === 'error') {
+      clearInterval(pollTimer);
+      showError(p.message);
+    }
+  }, 500);
+}
+
+async function saveFile() {
+  const result = JSON.parse(await pywebview.api.save_file());
+  if (result.error) showError(result.error);
+}
+
+function stageLabel(s) {
+  const m = { extracting:'提取帧', 'removing-bg':'AI 去背景', postprocess:'后处理', encoding:'合成 WebP', done:'完成', error:'出错' };
+  return m[s] || s;
+}
+
+function showError(msg) {
+  $('errorBox').textContent = msg;
+  $('errorBox').style.display = 'block';
+  $('startBtn').disabled = false;
+  $('progressWrap').style.display = 'none';
+}
+
+function resetAll() {
+  if (pollTimer) clearInterval(pollTimer);
+  videoPath = null;
+  $('fileArea').classList.remove('has-file');
+  $('fileIcon').textContent = '📁';
+  $('fileName').textContent = '点击选择视频文件';
+  $('fileMeta').textContent = '支持 MOV / MP4';
+  $('startBtn').disabled = true;
+  $('progressWrap').style.display = 'none';
+  $('preview').style.display = 'none';
+  $('doneBox').style.display = 'none';
+  $('actions').style.display = 'none';
+  $('errorBox').style.display = 'none';
+}
+</script>
+</body>
+</html>
