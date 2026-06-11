@@ -38,3 +38,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# img2webp 二进制（postinstall 自动下载）
+/bin/

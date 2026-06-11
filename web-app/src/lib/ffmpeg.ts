@@ -1,7 +1,8 @@
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
+import { existsSync } from "node:fs";
 import { mkdir, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { spawn } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 
 export type VideoInfo = {
   durationSeconds: number;
@@ -64,27 +65,65 @@ export async function encodeWebp(options: {
   fps: number;
   quality: number;
 }) {
-  const framePattern = join(options.keyedDir, "frame_%04d.png");
-  await runFfmpeg([
-    "-y",
-    "-framerate",
-    String(options.fps),
-    "-i",
-    framePattern,
-    "-loop",
-    "0",
-    "-c:v",
-    "libwebp",
-    "-lossless",
-    "0",
-    "-quality",
-    String(options.quality),
-    "-an",
-    options.outputPath,
-  ]);
+  const frames = await listPngFrames(options.keyedDir);
+  if (frames.length === 0) {
+    throw new Error("没有可编码的帧");
+  }
+
+  // 使用 Google 官方 img2webp，避免 ffmpeg WebP muxer 的 frame blending bug
+  // ffmpeg 的 WebP muxer 在透明动图上会导致帧间残影（ticket #7941, #9531）
+  const durationMs = Math.round(1000 / options.fps);
+  const img2webpPath = findBinary("img2webp", ["bin/img2webp"]);
+  if (!img2webpPath) {
+    throw new Error("未找到 img2webp 二进制，请检查 npm install 是否正常完成");
+  }
+  await runImg2webp(img2webpPath, frames, durationMs, options.quality, options.outputPath);
 
   const outputStat = await stat(options.outputPath);
   return outputStat.size;
+}
+
+async function runImg2webp(
+  binaryPath: string,
+  frames: string[],
+  durationMs: number,
+  quality: number,
+  outputPath: string,
+) {
+  await spawnPromise(
+    binaryPath,
+    [
+      "-d",
+      String(durationMs),
+      "-lossy",
+      "-q",
+      String(quality),
+      "-loop",
+      "0",
+      "-o",
+      outputPath,
+      ...frames,
+    ],
+  );
+}
+
+function spawnPromise(command: string, args: string[]) {
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stderr = "";
+
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`img2webp 执行失败: ${stderr.slice(0, 2000)}`));
+    });
+  });
 }
 
 export async function listPngFrames(dir: string) {
@@ -93,6 +132,19 @@ export async function listPngFrames(dir: string) {
     .filter((file) => file.endsWith(".png"))
     .sort()
     .map((file) => join(dir, file));
+}
+
+function findBinary(name: string, extraPaths: string[]) {
+  // 1. 先从项目内搜索（Vercel 通过 outputFileTracingIncludes 引入）
+  for (const p of extraPaths) {
+    const full = join(process.cwd(), p);
+    if (existsSync(full)) return full;
+  }
+  // 2. 从系统 PATH 搜索（本地开发用）
+  try {
+    return execSync(`which ${name}`, { encoding: "utf8" }).trim();
+  } catch {}
+  return null;
 }
 
 async function runFfmpeg(
