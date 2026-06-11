@@ -1,8 +1,10 @@
 import ffmpeg from "@ffmpeg-installer/ffmpeg";
-import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { mkdir, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { execSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
+
+const require = createRequire(import.meta.url);
 
 export type VideoInfo = {
   durationSeconds: number;
@@ -59,58 +61,6 @@ export async function extractFrames(options: {
   return listPngFrames(options.framesDir);
 }
 
-// ── img2webp 运行时自动下载 ──────────────────────
-
-const IMG2WEBP_VERSION = "1.5.0";
-const PLATFORM_MAP: Record<string, string> = {
-  "linux-x64": "linux-x86-64",
-  "linux-arm64": "linux-aarch64",
-  "darwin-x64": "mac-x86-64",
-  "darwin-arm64": "mac-arm64",
-};
-
-let img2webpPromise: Promise<string> | null = null;
-
-async function ensureImg2webp(): Promise<string> {
-  if (!img2webpPromise) {
-    img2webpPromise = doDownload();
-  }
-  return img2webpPromise;
-}
-
-async function doDownload(): Promise<string> {
-  const { chmodSync } = await import("node:fs");
-  const { tmpdir } = await import("node:os");
-
-  // 缓存在 /tmp，Vercel Function 实例内复用
-  const cachePath = join(tmpdir(), "img2webp");
-  if (existsSync(cachePath)) return cachePath;
-
-  const arch = `${process.platform}-${process.arch}`;
-  const release = PLATFORM_MAP[arch];
-  if (!release) throw new Error(`不支持的平台: ${arch}`);
-
-  const url = `https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${IMG2WEBP_VERSION}-${release}.tar.gz`;
-  const tmp = join(tmpdir(), `img2webp-${Date.now()}.tar.gz`);
-
-  console.log(`img2webp: 下载中 (${release})...`);
-  const { execSync } = await import("node:child_process");
-
-  try {
-    execSync(`curl -fsSL "${url}" -o "${tmp}"`, { stdio: "pipe", timeout: 30000 });
-    execSync(
-      `tar xzf "${tmp}" -C "${tmpdir()}" --strip-components=2 "*/bin/img2webp"`,
-      { stdio: "pipe" },
-    );
-    chmodSync(cachePath, 0o755);
-    console.log("img2webp: 就绪");
-  } finally {
-    try { require("node:fs").unlinkSync(tmp); } catch {}
-  }
-
-  return cachePath;
-}
-
 export async function encodeWebp(options: {
   keyedDir: string;
   outputPath: string;
@@ -124,10 +74,11 @@ export async function encodeWebp(options: {
 
   // 使用 Google 官方 img2webp，避免 ffmpeg WebP muxer 的 frame blending bug
   // ffmpeg 的 WebP muxer 在透明动图上会导致帧间残影（ticket #7941, #9531）
+  // libwebp-static 在 npm install 时提供对应平台的静态二进制
+  const { img2webp } = require("libwebp-static");
   const durationMs = Math.round(1000 / options.fps);
-  const img2webpPath = await ensureImg2webp();
   await spawnPromise(
-    img2webpPath,
+    img2webp,
     [
       "-d",
       String(durationMs),
