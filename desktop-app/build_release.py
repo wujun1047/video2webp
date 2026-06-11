@@ -10,7 +10,8 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 DIST = HERE / 'dist'
-APP_NAME = '视频转透明WebP'
+APP_DISPLAY = '视频转透明WebP'
+EXE_NAME = 'Video2WebP'  # ASCII 文件名，避免 Windows 编码问题
 
 SYSTEM = platform.system()
 
@@ -83,7 +84,7 @@ def setup_model():
 
 def run_build():
     """运行 PyInstaller 构建"""
-    print(f'\n=== 构建 {APP_NAME} ({SYSTEM}) ===\n')
+    print(f'\n=== 构建 {APP_DISPLAY} ({SYSTEM}) ===\n')
 
     # 创建数据文件列表
     datas = [('gui.html', '.')]
@@ -112,11 +113,11 @@ a = Analysis(['gui.py'], pathex=['{HERE}'], binaries=[], datas={datas},
     excludes=['tkinter','matplotlib','pandas','tensorflow','jupyter','IPython'])
 pyz = PYZ(a.pure, a.zipped_data)
 exe = EXE(pyz, a.scripts, a.binaries, a.zipfiles, a.datas, [],
-    name='{APP_NAME}', debug=False, strip=False, upx=True, console=False)
+    name='{EXE_NAME}', debug=False, strip=False, upx=True, console=False)
 if sys.platform == 'darwin':
-    app = BUNDLE(exe, name='{APP_NAME}.app',
+    app = BUNDLE(exe, name='{APP_DISPLAY}.app',
         bundle_identifier='com.video2webp.app',
-        info_plist={{'CFBundleName':'{APP_NAME}','CFBundleDisplayName':'{APP_NAME}',
+        info_plist={{'CFBundleName':'{APP_DISPLAY}','CFBundleDisplayName':'{APP_DISPLAY}',
             'CFBundleShortVersionString':'1.0.0','CFBundleVersion':'1.0.0',
             'NSHighResolutionCapable':True}})
 '''
@@ -133,10 +134,12 @@ if sys.platform == 'darwin':
 
     print(f'\n=== 构建完成 ===')
     if SYSTEM == 'Darwin':
-        app_path = DIST / f'{APP_NAME}.app'
+        app_path = DIST / f'{APP_DISPLAY}.app'
+        exe_path = DIST / EXE_NAME
         print(f'  .app: {app_path}')
+        print(f'  可执行文件: {exe_path}')
     else:
-        exe_path = DIST / f'{APP_NAME}.exe'
+        exe_path = DIST / f'{EXE_NAME}.exe'
         print(f'  .exe: {exe_path}')
 
 
