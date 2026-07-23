@@ -11,13 +11,10 @@ export type VideoInfo = {
   width: number;
   height: number;
   fps: number;
+  hasAlpha: boolean;
 };
 
-export async function probeVideo(inputPath: string): Promise<VideoInfo> {
-  const result = await runFfmpeg(["-hide_banner", "-i", inputPath], {
-    allowNonZeroExit: true,
-  });
-  const text = `${result.stderr}\n${result.stdout}`;
+export function parseVideoInfo(text: string): VideoInfo {
   const duration = text.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
   const stream = text.match(/Video:.*?,\s*(\d{2,5})x(\d{2,5}).*?(?:(\d+(?:\.\d+)?)\s*fps)?/);
 
@@ -30,12 +27,26 @@ export async function probeVideo(inputPath: string): Promise<VideoInfo> {
   const seconds = Number(duration[3]);
   const fps = stream[3] ? Math.round(Number(stream[3])) : 30;
 
+  // pix_fmt 是分辨率紧前的词根(可带色彩元数据括号); argb/rgba/yuva*/ya* 等含字母 a 表示带 alpha 通道
+  const pixFmtMatch = text.match(
+    /Video:.*?([a-z0-9]+)\s*(?:\([^)]*\))?,\s*\d{2,5}x\d{2,5}/,
+  );
+  const hasAlpha = /a/.test(pixFmtMatch?.[1] ?? "");
+
   return {
     durationSeconds: hours * 3600 + minutes * 60 + seconds,
     width: Number(stream[1]),
     height: Number(stream[2]),
     fps,
+    hasAlpha,
   };
+}
+
+export async function probeVideo(inputPath: string): Promise<VideoInfo> {
+  const result = await runFfmpeg(["-hide_banner", "-i", inputPath], {
+    allowNonZeroExit: true,
+  });
+  return parseVideoInfo(`${result.stderr}\n${result.stdout}`);
 }
 
 export async function extractFrames(options: {

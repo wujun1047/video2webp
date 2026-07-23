@@ -52,4 +52,15 @@ describe("normalizeConvertOptions", () => {
       }),
     ).toThrow("视频不能超过");
   });
+
+  test("接受 alpha 模式（带 alpha 通道的源）", () => {
+    const result = normalizeConvertOptions({
+      inputUrl: "https://example.com/input.mov",
+      pathname: "inputs/input.mov",
+      filename: "input.mov",
+      mode: "alpha",
+      quality: 85,
+    });
+    expect(result.mode).toBe("alpha");
+  });
 });

@@ -151,6 +151,9 @@ export function chromaKeyRgba(
   height: number,
   mode: BackgroundMode,
 ) {
+  if (mode === "alpha") {
+    throw new Error("alpha 模式使用源 alpha 通道，不应进入色度键控");
+  }
   const keyChannel = mode === "auto" ? detectKeyChannel(rgba, width, height) : mode;
   const channel = keyChannel === "green" ? 1 : 2;
   const others: [number, number] = channel === 1 ? [0, 2] : [0, 1];

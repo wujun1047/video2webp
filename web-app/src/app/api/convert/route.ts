@@ -54,18 +54,29 @@ export async function POST(request: Request) {
       maxSize: options.maxSize,
     });
 
-    await mkdir(paths.keyedDir, { recursive: true });
-    for (const frame of frames) {
-      await chromaKeyPngFile(
-        frame,
-        join(paths.keyedDir, basename(frame)),
-        options.mode,
-      );
+    // alpha 模式直接用源文件自带的 alpha 通道（ffmpeg 提取的 PNG 已保留），跳过色度键控
+    let keyedDir = paths.keyedDir;
+    if (options.mode === "alpha") {
+      if (!videoInfo.hasAlpha) {
+        throw new Error(
+          "该视频没有 alpha 通道，无法使用「带Alpha」模式。请上传带透明通道的源（如 qtrle / ProRes 4444 的 mov），或改用自动/绿幕/蓝幕",
+        );
+      }
+      keyedDir = paths.framesDir;
+    } else {
+      await mkdir(paths.keyedDir, { recursive: true });
+      for (const frame of frames) {
+        await chromaKeyPngFile(
+          frame,
+          join(paths.keyedDir, basename(frame)),
+          options.mode,
+        );
+      }
     }
 
     const effectiveFps = Math.min(videoInfo.fps || options.maxFps, options.maxFps);
     const sizeBytes = await encodeWebp({
-      keyedDir: paths.keyedDir,
+      keyedDir,
       outputPath: paths.output,
       fps: effectiveFps,
       quality: options.quality,
@@ -96,13 +107,14 @@ export async function POST(request: Request) {
       outputUrl: output.url,
       outputPathname: output.pathname,
       sizeBytes,
-      frames: (await listPngFrames(paths.keyedDir)).length,
+      frames: (await listPngFrames(keyedDir)).length,
       durationMs: Math.round(1000 / effectiveFps),
       input: {
         width: videoInfo.width,
         height: videoInfo.height,
         fps: videoInfo.fps,
         durationSeconds: videoInfo.durationSeconds,
+        hasAlpha: videoInfo.hasAlpha,
       },
     });
   } catch (error) {

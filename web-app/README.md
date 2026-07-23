@@ -1,11 +1,11 @@
 # 视频转透明 WebP Web App
 
-基于 Next.js、Vercel Blob 和 Vercel Function 的绿幕/蓝幕视频转透明 WebP 工具。
+基于 Next.js、Vercel Blob 和 Vercel Function 的视频转透明 WebP 工具（绿幕/蓝幕键控，或直接用源文件 alpha 通道）。
 
 ## 支持范围
 
 - 输入：`.mp4`、`.mov`
-- 背景：自动检测、绿幕、蓝幕
+- 背景：自动检测、绿幕、蓝幕、带Alpha（源文件自带透明通道时直接用，效果最好）
 - 输出：透明背景 animated WebP
 - 默认参数：24fps、720px、质量 85
 - 可选帧率：15fps、24fps、30fps
@@ -107,6 +107,12 @@ vercel env pull .env.local
 ### 提示未检测到绿幕或蓝幕
 
 自动检测只看画面四角的主导颜色。可以手动选择绿幕或蓝幕重试。复杂背景暂不支持。
+
+### 「带Alpha」模式怎么用
+
+适用于源文件本身就带透明通道的视频（如 qtrle/argb 的 `.mov`、ProRes 4444、yuva 编码）。勾选后跳过色度键控，直接用源 alpha 通道，边缘最干净、无闪烁。
+
+若报错"该视频没有 alpha 通道"，说明源是普通 mp4 之类不带通道，请改用自动/绿幕/蓝幕，或换带通道的源文件。
 
 ### 转换超时
 

@@ -74,7 +74,7 @@
 
 ## Web App
 
-`web-app/` 是基于 Next.js + Vercel Blob + Vercel Function 的在线版本，功能与 CLI 管线对齐（绿幕/蓝幕键控），提供浏览器上传、在线转换、直接下载。详见 [web-app/README.md](./web-app/README.md)。
+`web-app/` 是基于 Next.js + Vercel Blob + Vercel Function 的在线版本，功能与 CLI 管线基本对齐（绿幕/蓝幕键控），并额外支持带 alpha 通道的源文件，提供浏览器上传、在线转换、直接下载。详见 [web-app/README.md](./web-app/README.md)。
 
 ## 注意
 

@@ -5,7 +5,7 @@ export const MAX_FPS = 30;
 export const DEFAULT_MAX_SIZE = 720;
 export const MAX_OUTPUT_BYTES = 20 * 1024 * 1024;
 
-export const MODES = ["auto", "green", "blue"] as const;
+export const MODES = ["auto", "green", "blue", "alpha"] as const;
 export type BackgroundMode = (typeof MODES)[number];
 
 export type ConvertOptions = {
@@ -48,7 +48,7 @@ export function normalizeConvertOptions(raw: RawConvertOptions): ConvertOptions 
   }
 
   if (!isBackgroundMode(raw.mode)) {
-    throw new Error("背景模式不支持，请选择自动、绿幕或蓝幕");
+    throw new Error("背景模式不支持，请选择自动、绿幕、蓝幕或带Alpha");
   }
 
   const quality = normalizeInteger(raw.quality, 85, 10, 100, "质量");

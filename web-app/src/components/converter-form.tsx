@@ -24,6 +24,7 @@ const modes: Array<{ value: BackgroundMode; label: string }> = [
   { value: "auto", label: "自动" },
   { value: "green", label: "绿幕" },
   { value: "blue", label: "蓝幕" },
+  { value: "alpha", label: "带Alpha" },
 ];
 
 export function ConverterForm() {
@@ -209,7 +210,7 @@ export function ConverterForm() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="bg-[#fffdf8] p-4">
             <label className="text-sm font-medium">背景模式</label>
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2">
               {modes.map((item) => (
                 <button
                   className={`h-11 border text-sm transition ${
