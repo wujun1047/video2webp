@@ -75,14 +75,18 @@ def chroma_key(img_rgb: np.ndarray, channel: int, low: float = 20, high: float =
         fg = img.copy()
 
     # 4) 边缘带强 despill：4:2:0 色度压缩会让幕布色渗进前景边缘 1-2 像素，
-    #    压到 max(另两通道) 仍是橄榄色，必须压到均值才回到暖色
+    #    压到 max(另两通道) 仍是橄榄色，必须压到均值才回到暖色。
+    #    只压真正被幕色污染的像素：K > max(另两通道)（偏幕色）且
+    #    alpha < 0.97（半透明边缘）；实色像素的偏绿是内容本身
+    #    （如暖黄、黄绿过渡色），不能压
     a_u8 = (alpha * 255).astype(np.uint8)
     eroded = np.array(
         Image.fromarray(a_u8).filter(ImageFilter.MinFilter(band_px * 2 + 1)),
         dtype=np.float32)
     band = (alpha > 0) & (eroded < 250)
     o_mean = (fg[:, :, others[0]] + fg[:, :, others[1]]) / 2
-    fg[:, :, channel] = np.where(band, np.minimum(fg[:, :, channel], o_mean),
+    spill = fg[:, :, channel] > np.maximum(fg[:, :, others[0]], fg[:, :, others[1]])
+    fg[:, :, channel] = np.where(band & spill & (alpha < 0.97), o_mean,
                                  fg[:, :, channel])
 
     # 5) 软收边：渗色最重的最外圈退为半透明，交给第 6 步换干净颜色；

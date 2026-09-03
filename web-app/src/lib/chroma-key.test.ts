@@ -82,4 +82,31 @@ describe("chroma key", () => {
     // 前景中心 alpha = 255
     expect(keyed[(5 * width + 6) * 4 + 3]).toBe(255);
   });
+
+  test("实色暖黄像素在 despill 边缘带内不被压绿", () => {
+    // 回归场景：源 4:2:0 噪声让黄色图案部分像素 alpha 微降，
+    // 9x9 腐蚀把整个邻域划入 despill band；暖黄天然满足 G > (R+B)/2，
+    // 若无条件压制会把黄色压成深橙色的"噪点块"
+    const width = 20;
+    const height = 20;
+    const frame = makeFrame(width, height, [0, 200, 0]);
+    // 大块暖黄前景 (230, 175, 60)
+    fillRect(frame, width, 4, 4, 15, 15, [230, 175, 60]);
+    // 中心挖一个偏绿像素（alpha 低洼，会把周围 4px 拖进 despill band）
+    const holeIdx = (9 * width + 9) * 4;
+    frame[holeIdx] = 100;
+    frame[holeIdx + 1] = 220;
+    frame[holeIdx + 2] = 40;
+
+    const keyed = chromaKeyRgba(frame, width, height, "green");
+
+    // 距洞 3px 的暖黄像素 (9,6)：处于 despill band（半径 4px）内、
+    // 又在软收边（半径 2px）之外 → alpha = 1 且 RGB 保留键控结果。
+    // G 通道必须保持 175 附近（误伤时会被压到 (230+60)/2 = 145）
+    const nearIdx = (6 * width + 9) * 4;
+    expect(keyed[nearIdx + 3]).toBe(255);
+    expect(keyed[nearIdx + 1]).toBeGreaterThanOrEqual(170);
+    // R 通道保持暖色
+    expect(keyed[nearIdx]).toBeGreaterThanOrEqual(225);
+  });
 });

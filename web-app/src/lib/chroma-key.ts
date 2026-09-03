@@ -221,10 +221,20 @@ export function chromaKeyRgba(
   const eroded = minFilter(alphaU8, width, height, BAND_PX);
 
   for (let i = 0; i < pixelCount; i++) {
-    // band: alpha > 0 但 eroded < 250 → 边缘带
-    if (alphaU8[i] > 0 && eroded[i] < 250) {
+    // band: alpha > 0 但 eroded < 250 → 边缘带。
+    // 只压真正被幕色污染的像素：K > max(另两通道)（偏幕色）且
+    // alpha < 0.97（半透明边缘）；实色像素的偏绿是内容本身
+    // （如暖黄、黄绿过渡色），不能压
+    const k = fg[i * 3 + channel];
+    if (
+      alphaU8[i] > 0 &&
+      eroded[i] < 250 &&
+      alpha[i] < 0.97 &&
+      k > fg[i * 3 + others[0]] &&
+      k > fg[i * 3 + others[1]]
+    ) {
       const oMean = (fg[i * 3 + others[0]] + fg[i * 3 + others[1]]) / 2;
-      fg[i * 3 + channel] = Math.min(fg[i * 3 + channel], oMean);
+      fg[i * 3 + channel] = Math.min(k, oMean);
     }
     // 全透明像素颜色清零
     if (alphaU8[i] === 0) {
